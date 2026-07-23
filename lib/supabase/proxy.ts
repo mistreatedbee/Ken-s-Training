@@ -21,7 +21,6 @@ export async function updateSession(request: NextRequest) {
     },
   )
 
-  // Always call getUser() immediately — required for session refresh
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
@@ -34,36 +33,14 @@ export async function updateSession(request: NextRequest) {
     return res
   }
 
-  // Unauthenticated guards
-  if (!user) {
-    if (pathname.startsWith('/dashboard')) return redirect('/login')
-    if (pathname.startsWith('/apply')) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/signup'
-      url.searchParams.set('next', '/apply')
-      const res = NextResponse.redirect(url)
-      supabaseResponse.cookies.getAll().forEach(({ name, value }) => res.cookies.set(name, value))
-      return res
-    }
-    if (pathname.startsWith('/admin')) return redirect('/login')
-    return supabaseResponse
-  }
-
-  // Role-based guard for admin
+  // Admin routes require authentication
   if (pathname.startsWith('/admin')) {
-    const { data: profile } = await supabase
-      .from('profiles').select('role').eq('id', user.id).single()
-    if (!profile || !['admin', 'reviewer'].includes(profile.role)) {
-      return redirect('/dashboard')
-    }
+    if (!user) return redirect('/login')
   }
 
-  // Redirect authenticated users away from auth pages
-  if (pathname === '/login' || pathname === '/signup') {
-    const { data: profile } = await supabase
-      .from('profiles').select('role').eq('id', user.id).single()
-    const dest = ['admin', 'reviewer'].includes(profile?.role ?? '') ? '/admin' : '/dashboard'
-    return redirect(dest)
+  // Redirect authenticated users away from login
+  if (pathname === '/login' && user) {
+    return redirect('/admin')
   }
 
   return supabaseResponse

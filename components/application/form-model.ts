@@ -1,6 +1,6 @@
 export type KtiForm = {
   // Step 1: Programme
-  programme_id: string
+  programme: string
   // Step 2: Personal
   first_name: string
   last_name: string
@@ -49,7 +49,7 @@ export type KtiForm = {
 }
 
 export const emptyForm: KtiForm = {
-  programme_id: '',
+  programme: '',
   first_name: '',
   last_name: '',
   date_of_birth: '',
@@ -124,7 +124,7 @@ export function validateStep(step: StepKey, f: KtiForm): Errors {
   }
 
   if (step === 'programme') {
-    if (!f.programme_id) e.programme_id = 'Please select a programme'
+    if (!f.programme) e.programme = 'Please select a programme'
   }
 
   if (step === 'personal') {
@@ -181,17 +181,16 @@ export function validateStep(step: StepKey, f: KtiForm): Errors {
   if (step === 'documents') {
     if (f.declaration !== true) e.declaration = 'Please accept the declaration'
     req('signature', 'Please type your full name to sign')
-    req('signature_date', 'Please enter today\'s date')
+    req('signature_date', "Please enter today's date")
   }
 
   return e
 }
 
-/** Convert KtiForm into the jsonb fields used in the applications table */
+/** Convert KtiForm into the columns used in the applications table */
 export function formToDbPayload(f: KtiForm) {
   return {
-    programme_id: f.programme_id || null,
-    programme_selection: { programme_id: f.programme_id },
+    programme: f.programme || null,
     personal_info: {
       first_name: f.first_name,
       last_name: f.last_name,
@@ -240,58 +239,6 @@ export function formToDbPayload(f: KtiForm) {
       goals: f.goals,
     },
     declaration: f.declaration === true,
-  }
-}
-
-/** Rehydrate a saved application row back into a KtiForm */
-export function dbRowToForm(row: Record<string, unknown>): KtiForm {
-  const p = (row.personal_info ?? {}) as Record<string, string>
-  const c = (row.contact_details ?? {}) as Record<string, string>
-  const k = (row.next_of_kin ?? {}) as Record<string, string>
-  const ed = (row.education ?? {}) as Record<string, string>
-  const ch = (row.church_background ?? {}) as Record<string, string | boolean | null>
-  const st = (row.personal_statement ?? {}) as Record<string, string>
-  const ps = (row.programme_selection ?? {}) as Record<string, string>
-
-  return {
-    programme_id: (ps.programme_id ?? row.programme_id ?? '') as string,
-    first_name: p.first_name ?? '',
-    last_name: p.last_name ?? '',
-    date_of_birth: p.date_of_birth ?? '',
-    id_number: p.id_number ?? '',
-    gender: p.gender ?? '',
-    marital_status: p.marital_status ?? '',
-    nationality: p.nationality ?? 'South African',
-    phone: c.phone ?? '',
-    whatsapp: c.whatsapp ?? '',
-    physical_address: c.physical_address ?? '',
-    physical_city: c.physical_city ?? '',
-    physical_province: c.physical_province ?? '',
-    postal_code: c.postal_code ?? '',
-    postal_same: (c.postal_same as boolean | null) ?? null,
-    postal_address: c.postal_address ?? '',
-    kin_full_name: k.full_name ?? '',
-    kin_relationship: k.relationship ?? '',
-    kin_phone: k.phone ?? '',
-    kin_email: k.email ?? '',
-    highest_qualification: ed.highest_qualification ?? '',
-    institution: ed.institution ?? '',
-    year_completed: ed.year_completed ?? '',
-    subjects: ed.subjects ?? '',
-    additional_qualifications: ed.additional_qualifications ?? '',
-    church_name: ch.church_name as string ?? '',
-    denomination: ch.denomination as string ?? '',
-    church_city: ch.city as string ?? '',
-    church_role: ch.role as string ?? '',
-    years_of_service: ch.years_of_service as string ?? '',
-    pastor_name: ch.pastor_name as string ?? '',
-    serves_ministry: (ch.serves_ministry as boolean | null) ?? null,
-    ministry_detail: ch.ministry_detail as string ?? '',
-    motivation: st.motivation ?? '',
-    calling: st.calling ?? '',
-    goals: st.goals ?? '',
-    declaration: (row.declaration as boolean | null) ?? null,
-    signature: '',
-    signature_date: '',
+    signature_data: f.signature,
   }
 }

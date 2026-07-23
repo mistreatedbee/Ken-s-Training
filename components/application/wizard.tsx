@@ -10,9 +10,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
-import type { Programme, ApplicationDocument } from '@/lib/types'
 import {
-  emptyForm, STEP_KEYS, STEP_META, validateStep, formToDbPayload, dbRowToForm,
+  emptyForm, STEP_KEYS, STEP_META, validateStep, formToDbPayload,
   type KtiForm, type Errors, type StepKey,
 } from './form-model'
 import {
@@ -28,46 +27,50 @@ const QUALIFICATIONS = [
   'Grade 10', 'Grade 11', 'Grade 12 / Matric', 'Certificate', 'Diploma', 'Degree', 'Postgraduate', 'Other',
 ]
 
+// Static programmes (no DB table needed)
+const PROGRAMMES = [
+  { id: 'Certificate in Theology', name: 'Certificate in Theology', duration_years: 1, description: 'A one-year foundation in Scripture, faith, and ministry. Perfect for those beginning their theological journey.', is_active: true, created_at: '' },
+  { id: 'Diploma in Ministry', name: 'Diploma in Ministry', duration_years: 2, description: 'A two-year programme preparing you to lead and serve in your church and community with depth and practical skill.', is_active: true, created_at: '' },
+  { id: 'Bachelor of Theology', name: 'Bachelor of Theology', duration_years: 3, description: 'A full three-year degree for deeper study, teaching, and pastoral leadership across all theological disciplines.', is_active: true, created_at: '' },
+]
+
+type DocRef = { type: string; path: string; name: string; size: number }
 type Phase = 'welcome' | 'form' | 'submitted'
 type SaveState = 'idle' | 'saving' | 'saved'
 
-interface Props {
-  userId: string
-  initialApplication: Record<string, unknown> | null
-  programmes: Programme[]
-  userFullName: string
-}
-
-export function ApplicationWizard({ userId, initialApplication, programmes, userFullName }: Props) {
+export function ApplicationWizard() {
   const [phase, setPhase] = useState<Phase>('welcome')
+  const [hasDraft, setHasDraft] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
-  const [form, setForm] = useState<KtiForm>(() =>
-    initialApplication ? dbRowToForm(initialApplication) : emptyForm,
-  )
+  const [form, setForm] = useState<KtiForm>(emptyForm)
   const [errors, setErrors] = useState<Errors>({})
   const [saveState, setSaveState] = useState<SaveState>('idle')
-  const [applicationId, setApplicationId] = useState<string | null>(
-    (initialApplication?.id as string) ?? null,
-  )
-  const [studentNumber, setStudentNumber] = useState<string>(
-    (initialApplication?.student_number as string) ?? '',
-  )
+  const [sessionId, setSessionId] = useState('')
+  const [docs, setDocs] = useState<DocRef[]>([])
+  const [studentNumber, setStudentNumber] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [documents, setDocuments] = useState<ApplicationDocument[]>([])
   const [uploading, setUploading] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const topRef = useRef<HTMLDivElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hasDraft = !!initialApplication
 
-  // Load existing documents
+  // Load draft from localStorage after mount (avoids SSR mismatch)
   useEffect(() => {
-    if (!applicationId) return
-    const supabase = createClient()
-    supabase.from('application_documents').select('*').eq('application_id', applicationId)
-      .then(({ data }) => { if (data) setDocuments(data) })
-  }, [applicationId])
+    const draft = localStorage.getItem('kti-draft')
+    const savedDocs = localStorage.getItem('kti-docs')
+    let sid = localStorage.getItem('kti-session-id')
+    if (!sid) {
+      sid = crypto.randomUUID()
+      localStorage.setItem('kti-session-id', sid)
+    }
+    setSessionId(sid)
+    if (draft) {
+      setForm(JSON.parse(draft))
+      setHasDraft(true)
+    }
+    if (savedDocs) setDocs(JSON.parse(savedDocs))
+  }, [])
 
   const set = useCallback(<K extends keyof KtiForm>(key: K, value: KtiForm[K]) => {
     setForm((f) => ({ ...f, [key]: value }))
@@ -76,24 +79,13 @@ export function ApplicationWizard({ userId, initialApplication, programmes, user
 
   const scrollTop = () => topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
-  // Debounced autosave to Supabase
+  // Autosave to localStorage
   useEffect(() => {
     if (phase !== 'form') return
     if (saveTimer.current) clearTimeout(saveTimer.current)
     setSaveState('saving')
-    saveTimer.current = setTimeout(async () => {
-      const supabase = createClient()
-      const payload = {
-        ...formToDbPayload(form),
-        profile_id: userId,
-        current_step: stepIndex + 1,
-      }
-      if (applicationId) {
-        await supabase.from('applications').update(payload).eq('id', applicationId)
-      } else {
-        const { data } = await supabase.from('applications').insert([payload]).select('id,student_number').single()
-        if (data) { setApplicationId(data.id); setStudentNumber(data.student_number) }
-      }
+    saveTimer.current = setTimeout(() => {
+      localStorage.setItem('kti-draft', JSON.stringify(form))
       setSaveState('saved')
     }, 800)
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
@@ -103,7 +95,7 @@ export function ApplicationWizard({ userId, initialApplication, programmes, user
   const stepKey = STEP_KEYS[stepIndex]
 
   const goNext = () => {
-    const errs = stepKey !== 'documents' ? validateStep(stepKey, form) : {}
+    const errs = validateStep(stepKey, form)
     if (Object.keys(errs).length > 0) { setErrors(errs); scrollTop(); return }
     setStepIndex((i) => Math.min(i + 1, STEP_KEYS.length - 1))
     setErrors({})
@@ -114,9 +106,42 @@ export function ApplicationWizard({ userId, initialApplication, programmes, user
   const jumpTo = (k: StepKey) => { setStepIndex(STEP_KEYS.indexOf(k)); scrollTop() }
 
   const startFresh = () => {
+    const newId = crypto.randomUUID()
+    localStorage.setItem('kti-session-id', newId)
+    localStorage.removeItem('kti-draft')
+    localStorage.removeItem('kti-docs')
+    setSessionId(newId)
     setForm(emptyForm)
+    setDocs([])
     setStepIndex(0)
+    setHasDraft(false)
     setPhase('form')
+  }
+
+  const handleUpload = async (docType: string, file: File) => {
+    setUploading(docType)
+    const supabase = createClient()
+    const path = `${sessionId}/${docType}-${Date.now()}-${file.name}`
+    const { error } = await supabase.storage.from('application-documents').upload(path, file)
+    if (!error) {
+      const newDoc: DocRef = { type: docType, path, name: file.name, size: file.size }
+      setDocs((prev) => {
+        const updated = [...prev.filter((d) => d.type !== docType), newDoc]
+        localStorage.setItem('kti-docs', JSON.stringify(updated))
+        return updated
+      })
+    }
+    setUploading(null)
+  }
+
+  const handleRemoveDoc = async (doc: DocRef) => {
+    const supabase = createClient()
+    await supabase.storage.from('application-documents').remove([doc.path])
+    setDocs((prev) => {
+      const updated = prev.filter((d) => d.path !== doc.path)
+      localStorage.setItem('kti-docs', JSON.stringify(updated))
+      return updated
+    })
   }
 
   const submit = async () => {
@@ -127,65 +152,28 @@ export function ApplicationWizard({ userId, initialApplication, programmes, user
     const supabase = createClient()
     const payload = {
       ...formToDbPayload(form),
-      profile_id: userId,
-      status: 'submitted',
+      documents: docs,
       submitted_at: new Date().toISOString(),
-      current_step: 8,
     }
-    if (applicationId) {
-      const { error } = await supabase.from('applications').update(payload).eq('id', applicationId)
-      if (error) { setSubmitError(error.message); setSubmitting(false); return }
-    } else {
-      const { data, error } = await supabase.from('applications').insert([payload]).select('id,student_number').single()
-      if (error) { setSubmitError(error.message); setSubmitting(false); return }
-      if (data) { setApplicationId(data.id); setStudentNumber(data.student_number) }
-    }
+    const { data, error } = await supabase
+      .from('applications')
+      .insert([payload])
+      .select('student_number')
+      .single()
+    if (error) { setSubmitError(error.message); setSubmitting(false); return }
+    localStorage.removeItem('kti-draft')
+    localStorage.removeItem('kti-docs')
+    localStorage.removeItem('kti-session-id')
+    setStudentNumber(data.student_number ?? '')
     setSubmitting(false)
     setPhase('submitted')
     window.scrollTo({ top: 0 })
-  }
-
-  const handleUpload = async (docType: string, file: File) => {
-    setUploading(docType)
-    const supabase = createClient()
-    const path = `${userId}/${applicationId ?? 'pending'}/${docType}-${Date.now()}-${file.name}`
-
-    if (!applicationId) {
-      const payload = { ...formToDbPayload(form), profile_id: userId, current_step: stepIndex + 1 }
-      const { data } = await supabase.from('applications').insert([payload]).select('id,student_number').single()
-      if (data) { setApplicationId(data.id); setStudentNumber(data.student_number) }
-    }
-
-    const { error: uploadErr } = await supabase.storage.from('application-documents').upload(path, file)
-    if (uploadErr) { setErrors({ ...errors }); setUploading(null); return }
-
-    const id = applicationId ?? ''
-    await supabase.from('application_documents').insert([{
-      application_id: id,
-      document_type: docType,
-      storage_path: path,
-      file_name: file.name,
-      file_size: file.size,
-    }])
-    setDocuments((prev) => [
-      ...prev.filter((d) => d.document_type !== docType),
-      { id: Date.now().toString(), application_id: id, document_type: docType as ApplicationDocument['document_type'], storage_path: path, file_name: file.name, file_size: file.size, uploaded_at: new Date().toISOString() },
-    ])
-    setUploading(null)
-  }
-
-  const handleRemoveDoc = async (doc: ApplicationDocument) => {
-    const supabase = createClient()
-    await supabase.storage.from('application-documents').remove([doc.storage_path])
-    await supabase.from('application_documents').delete().eq('id', doc.id)
-    setDocuments((prev) => prev.filter((d) => d.id !== doc.id))
   }
 
   if (phase === 'welcome') {
     return (
       <WelcomeScreen
         hasDraft={hasDraft}
-        userFullName={userFullName}
         onStart={startFresh}
         onResume={() => setPhase('form')}
         onFresh={startFresh}
@@ -228,10 +216,10 @@ export function ApplicationWizard({ userId, initialApplication, programmes, user
           <ProgrammeCards
             label="Which programme would you like to study?"
             helper="Read through the options and choose the one that feels right. You can always ask us for help."
-            value={form.programme_id}
-            onChange={(v) => set('programme_id', v)}
-            programmes={programmes}
-            error={errors.programme_id}
+            value={form.programme}
+            onChange={(v) => set('programme', v)}
+            programmes={PROGRAMMES}
+            error={errors.programme}
             required
           />
         )}
@@ -246,11 +234,10 @@ export function ApplicationWizard({ userId, initialApplication, programmes, user
             form={form}
             set={set}
             errors={errors}
-            documents={documents}
+            docs={docs}
             uploading={uploading}
             onUpload={handleUpload}
             onRemove={handleRemoveDoc}
-            applicationId={applicationId}
           />
         )}
 
@@ -272,7 +259,6 @@ export function ApplicationWizard({ userId, initialApplication, programmes, user
         )}
       </div>
 
-      {/* Navigation buttons */}
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         {stepIndex > 0 ? (
           <Button variant="outline" onClick={goBack} className="h-14 gap-2 px-6 text-lg sm:w-auto">
@@ -301,13 +287,13 @@ export function ApplicationWizard({ userId, initialApplication, programmes, user
 
       <p className="mt-5 flex items-center justify-center gap-2 text-center text-base text-muted-foreground">
         <Save className="size-4" />
-        Your progress is saved automatically. You can safely close this page and come back later.
+        Your progress is saved on this device. You can safely close and come back later.
       </p>
     </div>
   )
 }
 
-// ── Save badge ───────────────────────────────────────────────
+// ── Save badge ──────────────────────────────────────────────────
 
 function SaveBadge({ state }: { state: SaveState }) {
   if (state === 'idle') return null
@@ -323,7 +309,7 @@ function SaveBadge({ state }: { state: SaveState }) {
   )
 }
 
-// ── Progress indicator ────────────────────────────────────────
+// ── Progress indicator ──────────────────────────────────────────
 
 function ProgressIndicator({ stepIndex, onJump }: { stepIndex: number; onJump: (k: StepKey) => void }) {
   const pct = ((stepIndex + 1) / STEP_KEYS.length) * 100
@@ -369,16 +355,15 @@ function ProgressIndicator({ stepIndex, onJump }: { stepIndex: number; onJump: (
   )
 }
 
-// ── Welcome screen ───────────────────────────────────────────
+// ── Welcome screen ──────────────────────────────────────────────
 
 function WelcomeScreen({
-  hasDraft, userFullName, onStart, onResume, onFresh,
-}: { hasDraft: boolean; userFullName: string; onStart: () => void; onResume: () => void; onFresh: () => void }) {
+  hasDraft, onStart, onResume, onFresh,
+}: { hasDraft: boolean; onStart: () => void; onResume: () => void; onFresh: () => void }) {
   return (
     <div className="mx-auto max-w-2xl text-center">
       <h1 className="font-serif text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-        {userFullName ? `Welcome, ${userFullName.split(' ')[0]}!` : 'Welcome!'}
-        <br />Let&apos;s begin your application
+        Welcome!<br />Let&apos;s begin your application
       </h1>
       <p className="mx-auto mt-4 max-w-xl text-lg leading-relaxed text-muted-foreground">
         We will ask a few simple questions about you and your faith. Take your time — there is no rush.
@@ -393,7 +378,7 @@ function WelcomeScreen({
       {hasDraft ? (
         <div className="mx-auto mt-8 flex max-w-md flex-col gap-3">
           <div className="rounded-2xl border border-accent/40 bg-accent/10 p-4 text-base font-medium text-foreground">
-            We found an application you started earlier. Would you like to continue?
+            We found an application you started on this device. Would you like to continue?
           </div>
           <Button onClick={onResume} className="h-16 gap-2 text-xl font-semibold">
             <RotateCcw className="size-6" /> Resume my application
@@ -404,7 +389,7 @@ function WelcomeScreen({
         </div>
       ) : (
         <Button onClick={onStart} className="mx-auto mt-8 h-16 gap-2 px-10 text-xl font-semibold">
-          <Sparkles className="size-6" /> Start application
+          <Sparkles className="size-6" /> Begin application
         </Button>
       )}
 
@@ -426,7 +411,7 @@ function InfoRow({ icon, text }: { icon: React.ReactNode; text: string }) {
   )
 }
 
-// ── Submitted screen ─────────────────────────────────────────
+// ── Submitted screen ────────────────────────────────────────────
 
 function SubmittedScreen({ studentNumber, copied, onCopy }: { studentNumber: string; copied: boolean; onCopy: () => void }) {
   return (
@@ -442,7 +427,7 @@ function SubmittedScreen({ studentNumber, copied, onCopy }: { studentNumber: str
       </p>
 
       <div className="mx-auto mt-8 max-w-md rounded-2xl border border-border bg-card p-6">
-        <p className="text-base font-medium text-muted-foreground">Your student / reference number</p>
+        <p className="text-base font-medium text-muted-foreground">Your reference number</p>
         <p className="mt-2 font-serif text-2xl font-bold tracking-wide text-primary sm:text-3xl">
           {studentNumber}
         </p>
@@ -450,7 +435,7 @@ function SubmittedScreen({ studentNumber, copied, onCopy }: { studentNumber: str
           {copied ? <><Check className="size-5 text-success" /> Copied</> : <><Copy className="size-5" /> Copy number</>}
         </Button>
         <p className="mt-3 text-sm text-muted-foreground">
-          Please keep this number safe. You may need it to track your application.
+          Please write this number down or take a photo of it. You may need it to follow up on your application.
         </p>
       </div>
 
@@ -460,7 +445,7 @@ function SubmittedScreen({ studentNumber, copied, onCopy }: { studentNumber: str
           {[
             'Our team reviews your application within 5 working days.',
             'We may contact your church leader to confirm your details.',
-            'You will receive a message or email with the outcome and next steps.',
+            'You will receive a call or message with the outcome and next steps.',
           ].map((t, i) => (
             <li key={i} className="flex gap-3 text-base text-foreground">
               <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
@@ -472,16 +457,16 @@ function SubmittedScreen({ studentNumber, copied, onCopy }: { studentNumber: str
         </ol>
       </div>
 
-      <Link href="/dashboard" className="mt-8 inline-block">
+      <Link href="/" className="mt-8 inline-block">
         <Button variant="outline" className="h-14 gap-2 px-8 text-lg">
-          <Home className="size-5" /> View my application
+          <Home className="size-5" /> Return to home page
         </Button>
       </Link>
     </div>
   )
 }
 
-// ── Step components ──────────────────────────────────────────
+// ── Step components ─────────────────────────────────────────────
 
 type StepProps = {
   form: KtiForm
@@ -537,8 +522,8 @@ function EducationStep({ form, set, errors }: StepProps) {
     <div className="flex flex-col gap-7">
       <SelectField id="highest_qualification" label="Highest qualification" helper="What is the highest level of education you have completed?" value={form.highest_qualification} onChange={(v) => set('highest_qualification', v)} options={QUALIFICATIONS} error={errors.highest_qualification} required />
       <TextField id="institution" label="School or institution" helper="Where did you study or complete this qualification?" example="Polokwane High School" value={form.institution} onChange={(v) => set('institution', v)} error={errors.institution} required />
-      <TextField id="year_completed" label="Year completed" example="2005" inputMode="numeric" max={new Date().getFullYear()} min={1950} value={form.year_completed} onChange={(v) => set('year_completed', v)} error={errors.year_completed} required />
-      <TextArea id="subjects" label="Subjects or areas of study" helper="List the main subjects you studied. A year or season is fine." example="English, Maths, History, Religious Studies" rows={3} value={form.subjects} onChange={(v) => set('subjects', v)} error={errors.subjects} />
+      <TextField id="year_completed" label="Year completed" example="2005" inputMode="numeric" value={form.year_completed} onChange={(v) => set('year_completed', v)} error={errors.year_completed} required />
+      <TextArea id="subjects" label="Subjects or areas of study" helper="List the main subjects you studied." example="English, Maths, History, Religious Studies" rows={3} value={form.subjects} onChange={(v) => set('subjects', v)} error={errors.subjects} />
       <TextArea id="additional_qualifications" label="Any other qualifications or training?" helper="Include any certificates, short courses, or Bible school training." rows={3} value={form.additional_qualifications} onChange={(v) => set('additional_qualifications', v)} error={errors.additional_qualifications} />
     </div>
   )
@@ -572,7 +557,7 @@ function StatementStep({ form, set, errors }: StepProps) {
   )
 }
 
-// ── Documents & Declaration step ─────────────────────────────
+// ── Documents & Declaration ─────────────────────────────────────
 
 const REQUIRED_DOCS = [
   { type: 'id_document', label: 'South African ID document', hint: 'A clear copy of the front and back of your ID book or ID card.', required: true },
@@ -582,13 +567,12 @@ const REQUIRED_DOCS = [
 ]
 
 function DocumentsStep({
-  form, set, errors, documents, uploading, onUpload, onRemove,
+  form, set, errors, docs, uploading, onUpload, onRemove,
 }: StepProps & {
-  documents: ApplicationDocument[]
+  docs: DocRef[]
   uploading: string | null
   onUpload: (type: string, file: File) => void
-  onRemove: (doc: ApplicationDocument) => void
-  applicationId: string | null
+  onRemove: (doc: DocRef) => void
 }) {
   return (
     <div className="flex flex-col gap-7">
@@ -597,9 +581,8 @@ function DocumentsStep({
         <p className="text-base text-muted-foreground">Files should be PDF, JPG, or PNG, and no larger than 5 MB each.</p>
 
         {REQUIRED_DOCS.map((req) => {
-          const uploaded = documents.find((d) => d.document_type === req.type)
+          const uploaded = docs.find((d) => d.type === req.type)
           const isUploading = uploading === req.type
-
           return (
             <div key={req.type} className="rounded-xl border-2 border-border p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -613,7 +596,7 @@ function DocumentsStep({
                 {uploaded ? (
                   <div className="flex items-center gap-2">
                     <span className="flex items-center gap-1.5 rounded-lg bg-success/10 px-3 py-2 text-base font-medium text-success">
-                      <FileText className="size-4" /> {uploaded.file_name}
+                      <FileText className="size-4" /> {uploaded.name}
                     </span>
                     <button onClick={() => onRemove(uploaded)} className="rounded p-1 text-muted-foreground hover:text-destructive">
                       <X className="size-4" />
