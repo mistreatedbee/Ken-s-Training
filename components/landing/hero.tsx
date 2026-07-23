@@ -39,12 +39,6 @@ export function Hero() {
               Start your application
               <ArrowRight className="size-5" />
             </Link>
-            <Link
-              href="/login"
-              className={cn(buttonVariants({ variant: "outline" }), "h-14 px-6 text-lg")}
-            >
-              Continue where you left off
-            </Link>
           </div>
 
           {/* Trust indicators */}

@@ -45,11 +45,6 @@ export function SiteFooter() {
             </li>
             <li>
               <Link href="/login" className="hover:underline">
-                Continue an application
-              </Link>
-            </li>
-            <li>
-              <Link href="/login" className="hover:underline">
                 Staff &amp; admin sign in
               </Link>
             </li>
