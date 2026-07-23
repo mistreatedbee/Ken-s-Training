@@ -20,7 +20,7 @@ export function HelpCta() {
             <ArrowRight className="size-5" />
           </Link>
           <a
-            href="tel:+27110000000"
+            href="tel:+27732047642"
             className={cn(
               buttonVariants({ variant: "outline" }),
               "h-14 gap-2 border-primary-foreground/30 bg-transparent px-6 text-lg text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground",
