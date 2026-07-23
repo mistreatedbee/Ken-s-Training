@@ -4,6 +4,10 @@
 -- Admins are Supabase Auth users (any authenticated user = admin).
 -- ============================================================
 
+-- Drop old auth trigger (from previous schema that created profiles on signup)
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+
 -- Drop everything in reverse FK order
 DROP TABLE IF EXISTS audit_log CASCADE;
 DROP TABLE IF EXISTS reviewer_assignments CASCADE;
