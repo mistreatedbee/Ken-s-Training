@@ -48,9 +48,17 @@ export function SiteFooter() {
         </div>
       </div>
       <div className="border-t border-sidebar-border">
-        <p className="mx-auto max-w-6xl px-4 py-4 text-center text-xs opacity-70 sm:px-6">
-          © {new Date().getFullYear()} Ken&apos;s Training Institute. All rights reserved.
-        </p>
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+          <p className="text-xs opacity-70">
+            © {new Date().getFullYear()} Ken&apos;s Training Institute. All rights reserved.
+          </p>
+          <Link
+            href="/login"
+            className="rounded-lg border border-sidebar-border px-3 py-1.5 text-xs font-medium opacity-60 transition hover:opacity-100"
+          >
+            Admin login
+          </Link>
+        </div>
       </div>
     </footer>
   )
