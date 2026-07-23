@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, CheckCircle2, Loader2, Upload } from 'lucide-react'
 import { BrandLogo } from '@/components/brand-logo'
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { createClient } from '@/lib/supabase/client'
 
-export default function PaymentUploadPage() {
+function PaymentForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const appId = searchParams.get('app')
@@ -137,5 +137,13 @@ export default function PaymentUploadPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function PaymentUploadPage() {
+  return (
+    <Suspense>
+      <PaymentForm />
+    </Suspense>
   )
 }
