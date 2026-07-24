@@ -1,13 +1,15 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { BarChart3, FileText, LogOut } from 'lucide-react'
+import { BarChart3, FileText, LogOut, MessageCircle, Users } from 'lucide-react'
 import { BrandLogo } from '@/components/brand-logo'
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
 
 const NAV = [
-  { href: '/admin',          label: 'Applications', icon: FileText },
-  { href: '/admin/reports',  label: 'Reports',      icon: BarChart3 },
+  { href: '/admin',           label: 'Applications', icon: FileText },
+  { href: '/admin/members',   label: 'Members',      icon: Users },
+  { href: '/admin/whatsapp',  label: 'WhatsApp',     icon: MessageCircle },
+  { href: '/admin/reports',   label: 'Reports',      icon: BarChart3 },
 ]
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

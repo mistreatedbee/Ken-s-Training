@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { FileText, Search } from 'lucide-react'
+import { FileText, MessageCircle, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -21,7 +21,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   let query = supabase
     .from('applications')
-    .select('id, student_number, status, submitted_at, programme, personal_info')
+    .select('id, student_number, status, submitted_at, programme, personal_info, contact_details')
     .order('submitted_at', { ascending: false })
 
   if (status && status !== 'all') query = query.eq('status', status)
@@ -103,29 +103,44 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             const pi = app.personal_info as { first_name?: string; last_name?: string } | null
             const name = `${pi?.first_name ?? ''} ${pi?.last_name ?? ''}`.trim() || 'Unknown applicant'
 
+            const cd = app.contact_details as { whatsapp?: string; phone?: string } | null
+            const waRaw = cd?.whatsapp || cd?.phone || ''
+            const waNumber = waRaw ? waRaw.replace(/\D/g, '').replace(/^0/, '27') : ''
+            const waUrl = waNumber ? `https://wa.me/${waNumber}` : null
+
             return (
-              <Link key={app.id} href={`/admin/applications/${app.id}`}>
-                <Card className="cursor-pointer transition hover:border-primary/40 hover:shadow-md">
-                  <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
-                    <div className="flex items-center gap-4">
-                      <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-lg font-bold text-primary">
-                        {name[0]?.toUpperCase() ?? '?'}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-foreground">{name}</p>
-                        <p className="text-sm text-muted-foreground">{app.programme ?? '—'}</p>
-                        <p className="font-mono text-xs text-muted-foreground">{app.student_number}</p>
-                      </div>
+              <Card key={app.id} className="transition hover:border-primary/40 hover:shadow-md">
+                <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+                  <Link href={`/admin/applications/${app.id}`} className="flex flex-1 items-center gap-4">
+                    <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-lg font-bold text-primary">
+                      {name[0]?.toUpperCase() ?? '?'}
                     </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      {meta && <Badge variant={meta.variant}>{meta.label}</Badge>}
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(app.submitted_at).toLocaleDateString('en-ZA', { dateStyle: 'medium' })}
-                      </span>
+                    <div>
+                      <p className="font-semibold text-foreground">{name}</p>
+                      <p className="text-sm text-muted-foreground">{app.programme ?? '—'}</p>
+                      <p className="font-mono text-xs text-muted-foreground">{app.student_number}</p>
                     </div>
-                  </CardContent>
-                </Card>
-              </Link>
+                  </Link>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {meta && <Badge variant={meta.variant}>{meta.label}</Badge>}
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(app.submitted_at).toLocaleDateString('en-ZA', { dateStyle: 'medium' })}
+                    </span>
+                    {waUrl && (
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`WhatsApp ${name}`}
+                        className="inline-flex items-center rounded-lg px-2 py-1.5 text-[#25D366] hover:bg-[#25D366]/10"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MessageCircle className="size-4" />
+                      </a>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             )
           })}
         </div>

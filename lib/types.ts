@@ -62,6 +62,52 @@ export interface PersonalStatement {
   goals: string
 }
 
+export interface WhatsAppTemplate {
+  id: string
+  name: string
+  trigger_type: string
+  body: string
+  active: boolean
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface WhatsAppLog {
+  id: string
+  application_id: string | null
+  applicant_name: string
+  whatsapp_number: string
+  template_id: string | null
+  template_name: string | null
+  message_body: string
+  trigger_type: string
+  sent_by: string
+  sent_at: string
+}
+
+export interface WhatsAppSettings {
+  id: number
+  auto_send_on_submission: boolean
+  auto_send_on_approval: boolean
+  auto_send_on_rejection: boolean
+}
+
+export interface Member {
+  id: string
+  member_number: string | null
+  application_id: string | null
+  full_name: string
+  phone: string | null
+  email: string | null
+  church: string | null
+  programme: string | null
+  status: 'active' | 'inactive' | 'suspended'
+  joined_date: string
+  created_at: string
+  updated_at: string
+}
+
 export interface Application {
   id: string
   student_number: string | null

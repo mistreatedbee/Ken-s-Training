@@ -32,13 +32,39 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
 
   const pi = app.personal_info as Record<string, string> | null
   const cd = app.contact_details as Record<string, string | boolean | null> | null
+
+  const applicantName = pi ? `${pi.first_name ?? ''} ${pi.last_name ?? ''}`.trim() : 'Unknown'
+  const applicantWhatsapp = (cd?.whatsapp as string) || (cd?.phone as string) || ''
+  const submittedDate = app.submitted_at
+    ? new Date(app.submitted_at).toLocaleDateString('en-ZA', { dateStyle: 'long' })
+    : '—'
+
+  // WhatsApp data — graceful if migration not yet run
+  const [waLogsResult, waTemplatesResult, waSettingsResult] = await Promise.allSettled([
+    supabase
+      .from('whatsapp_logs')
+      .select('*')
+      .eq('application_id', id)
+      .order('sent_at', { ascending: false }),
+    supabase
+      .from('whatsapp_templates')
+      .select('*')
+      .eq('active', true)
+      .order('trigger_type')
+      .order('name'),
+    supabase.from('whatsapp_settings').select('*').single(),
+  ])
+
+  const waLogs = waLogsResult.status === 'fulfilled' ? (waLogsResult.value.data ?? []) : []
+  const waTemplates = waTemplatesResult.status === 'fulfilled' ? (waTemplatesResult.value.data ?? []) : []
+  const waSettings = waSettingsResult.status === 'fulfilled' ? waSettingsResult.value.data : null
   const kin = app.next_of_kin as Record<string, string> | null
   const edu = app.education as Record<string, string> | null
   const ch = app.church_background as Record<string, string | boolean | null> | null
   const st = app.personal_statement as Record<string, string> | null
   const docs = (app.documents as DocRef[] | null) ?? []
 
-  const name = pi ? `${pi.first_name ?? ''} ${pi.last_name ?? ''}`.trim() : 'Unknown applicant'
+  const name = applicantName || 'Unknown applicant'
   const status = app.status as keyof typeof STATUS_META
   const meta = STATUS_META[status]
 
@@ -198,6 +224,13 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
           <AdminApplicationActions
             applicationId={id}
             currentStatus={app.status}
+            applicantName={applicantName}
+            applicantWhatsapp={applicantWhatsapp}
+            programmeName={app.programme ?? ''}
+            submissionDate={submittedDate}
+            initialWaLogs={waLogs}
+            waTemplates={waTemplates}
+            waSettings={waSettings ?? null}
           />
         </div>
       </div>

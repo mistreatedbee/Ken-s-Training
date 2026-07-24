@@ -13,8 +13,8 @@ export function BrandLogo({
   return (
     <span className={cn("flex items-center gap-3", className)}>
       <Image
-        src="/kti-logo.png"
-        alt="Ken's Training Institute crest"
+        src="/kti-logo.jpeg"
+        alt="Ken's Training Institute logo"
         width={48}
         height={48}
         className="size-10 shrink-0 object-contain sm:size-12"
