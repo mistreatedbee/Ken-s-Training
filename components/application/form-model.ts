@@ -170,12 +170,9 @@ export function validateStep(step: StepKey, f: KtiForm): Errors {
   }
 
   if (step === 'statement') {
-    if (!f.motivation.trim() || f.motivation.split(/\s+/).filter(Boolean).length < 30)
-      e.motivation = 'Please write at least 30 words'
-    if (!f.calling.trim() || f.calling.split(/\s+/).filter(Boolean).length < 30)
-      e.calling = 'Please write at least 30 words'
-    if (!f.goals.trim() || f.goals.split(/\s+/).filter(Boolean).length < 30)
-      e.goals = 'Please write at least 30 words'
+    if (!f.motivation.trim()) e.motivation = 'Please answer this question'
+    if (!f.calling.trim()) e.calling = 'Please answer this question'
+    if (!f.goals.trim()) e.goals = 'Please answer this question'
   }
 
   if (step === 'documents') {
