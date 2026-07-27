@@ -551,8 +551,8 @@ function StatementStep({ form, set, errors }: StepProps) {
     <div className="flex flex-col gap-7">
       <p className="text-lg leading-relaxed text-muted-foreground">Please answer each question in your own words. There are no wrong answers — just be honest and open.</p>
       <TextArea id="motivation" label="Why do you want to study theology?" helper="Share what has led you to apply. A minimum of 30 words." rows={6} value={form.motivation} onChange={(v) => set('motivation', v)} error={errors.motivation} required />
-      <TextArea id="calling" label="Describe your calling to ministry" helper="When and how did you feel called by God? What does that calling look like for you?" rows={6} value={form.calling} onChange={(v) => set('calling', v)} error={errors.calling} required />
-      <TextArea id="goals" label="What are your goals after completing this programme?" helper="How will this training help you serve God, your church, and your community?" rows={6} value={form.goals} onChange={(v) => set('goals', v)} error={errors.goals} required />
+      <TextArea id="calling" label="Describe your calling to ministry" helper="When and how did you feel called by God? What does that calling look like for you? A minimum of 30 words." rows={6} value={form.calling} onChange={(v) => set('calling', v)} error={errors.calling} required />
+      <TextArea id="goals" label="What are your goals after completing this programme?" helper="How will this training help you serve God, your church, and your community? A minimum of 30 words." rows={6} value={form.goals} onChange={(v) => set('goals', v)} error={errors.goals} required />
     </div>
   )
 }
