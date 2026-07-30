@@ -1,8 +1,8 @@
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 
-// Real file is 1894x830 (~2.28:1). Sizing by height + w-auto keeps that
-// ratio intact — a square box would squash it down to a sliver.
+// Logo file is 1894x830 (~2.28:1). Use height-based sizing (h-* w-auto) to
+// preserve the aspect ratio — a square box squashes the wide lockup.
 export function BrandLogo({
   className,
   showText = true,
@@ -30,8 +30,8 @@ export function BrandLogo({
       />
       {showText && (
         <span className={cn("flex flex-col leading-tight", textClassName)}>
-          <span className="font-serif text-base font-bold sm:text-lg">Ken&apos;s Training</span>
-          <span className="text-xs font-medium uppercase tracking-wide opacity-80 sm:text-sm">Institute</span>
+          <span className="font-serif text-sm font-semibold sm:text-base">Ken&apos;s Training Institute</span>
+          <span className="text-xs font-bold sm:text-sm">Theological College</span>
         </span>
       )}
     </span>

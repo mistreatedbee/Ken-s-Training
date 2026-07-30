@@ -26,7 +26,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <aside className="flex w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-4">
           <Link href="/" aria-label="Home">
-            <BrandLogo className="text-sidebar-foreground" />
+            <BrandLogo
+              className="text-sidebar-foreground"
+              imgClassName="h-8 w-auto object-contain rounded-md bg-white px-2 py-1"
+            />
           </Link>
         </div>
 
