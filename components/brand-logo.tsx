@@ -1,15 +1,15 @@
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 
-// Real file is 379x166 (~2.29:1). Sizing by height + w-auto keeps that
+// Real file is 1894x830 (~2.28:1). Sizing by height + w-auto keeps that
 // ratio intact — a square box would squash it down to a sliver.
 export function BrandLogo({
   className,
   showText = true,
   textClassName,
   imgClassName = "h-10 w-auto shrink-0 object-contain",
-  imgWidth = 379,
-  imgHeight = 166,
+  imgWidth = 1894,
+  imgHeight = 830,
 }: {
   className?: string
   showText?: boolean
@@ -21,7 +21,7 @@ export function BrandLogo({
   return (
     <span className={cn("flex items-center gap-3", className)}>
       <Image
-        src="/kti-logo.jpeg"
+        src="/kti-logo.png"
         alt="Ken's Training Institute logo"
         width={imgWidth}
         height={imgHeight}
