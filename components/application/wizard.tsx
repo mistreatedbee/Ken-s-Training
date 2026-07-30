@@ -29,9 +29,20 @@ const QUALIFICATIONS = [
 
 // Static programmes (no DB table needed)
 const PROGRAMMES = [
-  { id: 'Certificate in Theology', name: 'Certificate in Theology', duration_years: 1, description: 'A one-year foundation in Scripture, faith, and ministry. Perfect for those beginning their theological journey.', is_active: true, created_at: '' },
-  { id: 'Diploma in Ministry', name: 'Diploma in Ministry', duration_years: 2, description: 'A two-year programme preparing you to lead and serve in your church and community with depth and practical skill.', is_active: true, created_at: '' },
-  { id: 'Bachelor of Theology', name: 'Bachelor of Theology', duration_years: 3, description: 'A full three-year degree for deeper study, teaching, and pastoral leadership across all theological disciplines.', is_active: true, created_at: '' },
+  { id: 'Pastoral Care Training (Narrative Community-Based)', name: 'Pastoral Care Training (Narrative Community-Based)', description: null },
+  { id: 'Starting and Sustaining Community Projects', name: 'Starting and Sustaining Community Projects', description: null },
+  { id: 'Crisis and Trauma Support', name: 'Crisis and Trauma Support', description: null },
+  { id: 'Early Childhood Development', name: 'Early Childhood Development', description: null },
+  { id: 'Peace Building', name: 'Peace Building', description: null },
+  { id: 'From Victims to Agents', name: 'From Victims to Agents', description: null },
+  { id: 'Narrative Group Counselling (offered by Prof Roelf Schoeman – Centre for Faith and Community)', name: 'Narrative Group Counselling (offered by Prof Roelf Schoeman – Centre for Faith and Community)', description: null },
+  { id: 'Moderator (SAQA US 117759)', name: 'Moderator (SAQA US 117759)', description: null },
+  { id: 'Assessor (SAQA US 115753)', name: 'Assessor (SAQA US 115753)', description: null },
+  { id: 'Facilitator (SAQA US 117871)', name: 'Facilitator (SAQA US 117871)', description: null },
+  { id: 'Narrative Group Counselling (offered by Apostle Kenny Mokgope)', name: 'Narrative Group Counselling (offered by Apostle Kenny Mokgope)', description: null },
+  { id: 'Praise and Worship Programme', name: 'Praise and Worship Programme', description: null },
+  { id: 'Diploma in Theology', name: 'Diploma in Theology', description: null },
+  { id: 'Ordination', name: 'Ordination', description: null },
 ]
 
 type DocRef = { type: string; path: string; name: string; size: number }
@@ -214,7 +225,7 @@ export function ApplicationWizard() {
 
         {stepKey === 'programme' && (
           <ProgrammeCards
-            label="Which programme would you like to study?"
+            label="Which course would you like to study?"
             helper="Read through the options and choose the one that feels right. You can always ask us for help."
             value={form.programme}
             onChange={(v) => set('programme', v)}

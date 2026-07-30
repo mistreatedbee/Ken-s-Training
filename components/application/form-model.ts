@@ -88,7 +88,7 @@ export const STEP_KEYS = [
 export type StepKey = (typeof STEP_KEYS)[number]
 
 export const STEP_META: Record<StepKey, { title: string; short: string }> = {
-  programme:  { title: 'Choose a programme',        short: 'Programme' },
+  programme:  { title: 'Choose a course',           short: 'Course' },
   personal:   { title: 'Personal information',      short: 'Personal' },
   contact:    { title: 'Contact details',           short: 'Contact' },
   kin:        { title: 'Next of kin',               short: 'Next of kin' },
@@ -105,7 +105,7 @@ export function validateStep(step: StepKey, f: KtiForm): Errors {
   }
 
   if (step === 'programme') {
-    if (!f.programme) e.programme = 'Please select a programme'
+    if (!f.programme) e.programme = 'Please select a course'
   }
 
   if (step === 'personal') {

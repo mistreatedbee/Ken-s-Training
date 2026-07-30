@@ -289,7 +289,7 @@ export function ProgrammeCards({
   error?: string
   value: string
   onChange: (v: string) => void
-  programmes: { id: string; name: string; duration_years: number; description: string | null }[]
+  programmes: { id: string; name: string; duration_years?: number | null; description: string | null }[]
   required?: boolean
 }) {
   return (
@@ -320,9 +320,11 @@ export function ProgrammeCards({
               </span>
               <div>
                 <p className="text-lg font-semibold text-foreground">{p.name}</p>
-                <p className="mt-0.5 text-base text-muted-foreground">
-                  {p.duration_years} year{p.duration_years > 1 ? 's' : ''}
-                </p>
+                {!!p.duration_years && (
+                  <p className="mt-0.5 text-base text-muted-foreground">
+                    {p.duration_years} year{p.duration_years > 1 ? 's' : ''}
+                  </p>
+                )}
                 {p.description && (
                   <p className="mt-1 text-base leading-relaxed text-muted-foreground">{p.description}</p>
                 )}
