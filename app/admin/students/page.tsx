@@ -3,23 +3,23 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
-export const metadata = { title: 'Members — KTI Admin' }
+export const metadata = { title: 'Students — KTI Admin' }
 
-export default async function MembersPage() {
+export default async function StudentsPage() {
   const supabase = await createClient()
 
-  const [membersResult] = await Promise.allSettled([
+  const [studentsResult] = await Promise.allSettled([
     supabase
-      .from('members')
+      .from('students')
       .select('*')
       .order('joined_date', { ascending: false }),
   ])
 
-  if (membersResult.status === 'rejected') {
+  if (studentsResult.status === 'rejected') {
     return (
       <div className="px-6 py-8">
         <div className="mb-8">
-          <h1 className="font-serif text-3xl font-bold text-foreground">Members</h1>
+          <h1 className="font-serif text-3xl font-bold text-foreground">Students</h1>
         </div>
         <div className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
@@ -28,9 +28,9 @@ export default async function MembersPage() {
             <p className="mt-1 text-sm text-amber-700">
               Run{' '}
               <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-xs">
-                supabase/migrations/20240102_whatsapp_members.sql
+                supabase/migrations/20260729_remove_church_add_students.sql
               </code>{' '}
-              in your Supabase SQL Editor to enable the Members module.
+              in your Supabase SQL Editor to enable the Students module.
             </p>
           </div>
         </div>
@@ -38,14 +38,14 @@ export default async function MembersPage() {
     )
   }
 
-  const members = membersResult.value.data ?? []
+  const students = studentsResult.value.data ?? []
 
   // Group by programme
-  const grouped = new Map<string, typeof members>()
-  for (const m of members) {
-    const key = m.programme?.trim() || 'Uncategorised'
+  const grouped = new Map<string, typeof students>()
+  for (const s of students) {
+    const key = s.programme?.trim() || 'Uncategorised'
     if (!grouped.has(key)) grouped.set(key, [])
-    grouped.get(key)!.push(m)
+    grouped.get(key)!.push(s)
   }
 
   // Sort: named programmes first, Uncategorised last
@@ -58,16 +58,16 @@ export default async function MembersPage() {
   return (
     <div className="px-6 py-8">
       <div className="mb-8">
-        <h1 className="font-serif text-3xl font-bold text-foreground">Members</h1>
+        <h1 className="font-serif text-3xl font-bold text-foreground">Students</h1>
         <p className="mt-1 text-muted-foreground">
-          {members.length} member{members.length !== 1 ? 's' : ''} across {sorted.length} programme{sorted.length !== 1 ? 's' : ''}
+          {students.length} student{students.length !== 1 ? 's' : ''} across {sorted.length} programme{sorted.length !== 1 ? 's' : ''}
         </p>
       </div>
 
-      {members.length === 0 ? (
+      {students.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
           <Users className="mx-auto size-12 text-muted-foreground/40" />
-          <p className="mt-3 font-serif text-lg font-semibold text-foreground">No members yet</p>
+          <p className="mt-3 font-serif text-lg font-semibold text-foreground">No students yet</p>
           <p className="mt-1 text-muted-foreground">
             Approved applicants will appear here automatically.
           </p>
@@ -85,35 +85,34 @@ export default async function MembersPage() {
               </div>
 
               <div className="flex flex-col gap-3">
-                {group.map((member) => (
-                  <Card key={member.id}>
+                {group.map((student) => (
+                  <Card key={student.id}>
                     <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
                       <div className="flex items-center gap-4">
                         <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-lg font-bold text-primary">
-                          {member.full_name?.[0]?.toUpperCase() ?? '?'}
+                          {student.full_name?.[0]?.toUpperCase() ?? '?'}
                         </div>
                         <div>
-                          <p className="font-semibold text-foreground">{member.full_name}</p>
-                          <p className="text-sm text-muted-foreground">{member.church ?? '—'}</p>
-                          <p className="font-mono text-xs text-muted-foreground">{member.member_number}</p>
+                          <p className="font-semibold text-foreground">{student.full_name}</p>
+                          <p className="font-mono text-xs text-muted-foreground">{student.student_number}</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
-                        <Badge variant={member.status === 'active' ? 'success' : member.status === 'suspended' ? 'warning' : 'default'}>
-                          {member.status}
+                        <Badge variant={student.status === 'active' ? 'success' : student.status === 'suspended' ? 'warning' : 'default'}>
+                          {student.status}
                         </Badge>
-                        {member.phone && (
+                        {student.phone && (
                           <a
-                            href={`https://wa.me/${member.phone.replace(/\D/g, '').replace(/^0/, '27')}`}
+                            href={`https://wa.me/${student.phone.replace(/\D/g, '').replace(/^0/, '27')}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-sm font-medium text-[#25D366] hover:underline"
                           >
-                            {member.phone}
+                            {student.phone}
                           </a>
                         )}
                         <span className="text-xs text-muted-foreground">
-                          Joined {new Date(member.joined_date).toLocaleDateString('en-ZA', { dateStyle: 'medium' })}
+                          Joined {new Date(student.joined_date).toLocaleDateString('en-ZA', { dateStyle: 'medium' })}
                         </span>
                       </div>
                     </CardContent>

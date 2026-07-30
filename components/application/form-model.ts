@@ -29,16 +29,7 @@ export type KtiForm = {
   year_completed: string
   subjects: string
   additional_qualifications: string
-  // Step 6: Church
-  church_name: string
-  denomination: string
-  church_city: string
-  church_role: string
-  years_of_service: string
-  pastor_name: string
-  serves_ministry: boolean | null
-  ministry_detail: string
-  // Step 7: Personal statement
+  // Step 6: Personal statement
   motivation: string
   calling: string
   goals: string
@@ -74,14 +65,6 @@ export const emptyForm: KtiForm = {
   year_completed: '',
   subjects: '',
   additional_qualifications: '',
-  church_name: '',
-  denomination: '',
-  church_city: '',
-  church_role: '',
-  years_of_service: '',
-  pastor_name: '',
-  serves_ministry: null,
-  ministry_detail: '',
   motivation: '',
   calling: '',
   goals: '',
@@ -98,7 +81,6 @@ export const STEP_KEYS = [
   'contact',
   'kin',
   'education',
-  'church',
   'statement',
   'documents',
 ] as const
@@ -111,7 +93,6 @@ export const STEP_META: Record<StepKey, { title: string; short: string }> = {
   contact:    { title: 'Contact details',           short: 'Contact' },
   kin:        { title: 'Next of kin',               short: 'Next of kin' },
   education:  { title: 'Education background',      short: 'Education' },
-  church:     { title: 'Church & ministry',         short: 'Church' },
   statement:  { title: 'Personal statement',        short: 'Statement' },
   documents:  { title: 'Documents & declaration',   short: 'Documents' },
 }
@@ -158,15 +139,6 @@ export function validateStep(step: StepKey, f: KtiForm): Errors {
     if (!f.highest_qualification) e.highest_qualification = 'Please select your highest qualification'
     req('institution', 'Please enter the name of your school or college')
     req('year_completed', 'Please enter the year you completed your studies')
-  }
-
-  if (step === 'church') {
-    req('church_name', 'Please enter your church name')
-    req('pastor_name', "Please enter your pastor's name")
-    if (f.serves_ministry === null) e.serves_ministry = 'Please choose Yes or No'
-    if (f.serves_ministry && !f.ministry_detail.trim()) {
-      e.ministry_detail = 'Please describe how you serve'
-    }
   }
 
   if (step === 'statement') {
@@ -219,16 +191,6 @@ export function formToDbPayload(f: KtiForm) {
       year_completed: f.year_completed,
       subjects: f.subjects,
       additional_qualifications: f.additional_qualifications,
-    },
-    church_background: {
-      church_name: f.church_name,
-      denomination: f.denomination,
-      city: f.church_city,
-      role: f.church_role,
-      years_of_service: f.years_of_service,
-      pastor_name: f.pastor_name,
-      serves_ministry: f.serves_ministry,
-      ministry_detail: f.ministry_detail,
     },
     personal_statement: {
       motivation: f.motivation,

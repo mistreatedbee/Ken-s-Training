@@ -5,19 +5,23 @@ export function BrandLogo({
   className,
   showText = true,
   textClassName,
+  imgClassName = "size-10 shrink-0 object-contain sm:size-12",
+  imgSize = 48,
 }: {
   className?: string
   showText?: boolean
   textClassName?: string
+  imgClassName?: string
+  imgSize?: number
 }) {
   return (
     <span className={cn("flex items-center gap-3", className)}>
       <Image
         src="/kti-logo.jpeg"
         alt="Ken's Training Institute logo"
-        width={48}
-        height={48}
-        className="size-10 shrink-0 object-contain sm:size-12"
+        width={imgSize}
+        height={imgSize}
+        className={imgClassName}
         priority
       />
       {showText && (

@@ -227,7 +227,6 @@ export function ApplicationWizard() {
         {stepKey === 'contact' && <ContactStep form={form} set={set} errors={errors} />}
         {stepKey === 'kin' && <KinStep form={form} set={set} errors={errors} />}
         {stepKey === 'education' && <EducationStep form={form} set={set} errors={errors} />}
-        {stepKey === 'church' && <ChurchStep form={form} set={set} errors={errors} />}
         {stepKey === 'statement' && <StatementStep form={form} set={set} errors={errors} />}
         {stepKey === 'documents' && (
           <DocumentsStep
@@ -444,7 +443,7 @@ function SubmittedScreen({ studentNumber, copied, onCopy }: { studentNumber: str
         <ol className="mt-3 space-y-3">
           {[
             'Our team reviews your application within 5 working days.',
-            'We may contact your church leader to confirm your details.',
+            'We may contact your next of kin to confirm your details.',
             'You will receive a call or message with the outcome and next steps.',
           ].map((t, i) => (
             <li key={i} className="flex gap-3 text-base text-foreground">
@@ -529,23 +528,6 @@ function EducationStep({ form, set, errors }: StepProps) {
   )
 }
 
-function ChurchStep({ form, set, errors }: StepProps) {
-  return (
-    <div className="flex flex-col gap-7">
-      <TextField id="church_name" label="Church name" example="Grace Community Church" value={form.church_name} onChange={(v) => set('church_name', v)} error={errors.church_name} required />
-      <TextField id="denomination" label="Denomination" helper="Optional — what type of church is it?" example="Pentecostal, Baptist, Methodist" value={form.denomination} onChange={(v) => set('denomination', v)} error={errors.denomination} />
-      <TextField id="church_city" label="City or town where your church is" example="Polokwane" value={form.church_city} onChange={(v) => set('church_city', v)} error={errors.church_city} />
-      <TextField id="pastor_name" label="Your pastor or church leader's name" example="Pastor Samuel Nkosi" value={form.pastor_name} onChange={(v) => set('pastor_name', v)} error={errors.pastor_name} required />
-      <TextField id="church_role" label="Your role or position in the church" helper="Optional — e.g. Elder, Youth leader, Member." example="Youth leader" value={form.church_role} onChange={(v) => set('church_role', v)} error={errors.church_role} />
-      <TextField id="years_of_service" label="How many years have you been at this church?" example="5" inputMode="numeric" value={form.years_of_service} onChange={(v) => set('years_of_service', v)} error={errors.years_of_service} />
-      <YesNo label="Do you serve in a ministry or outreach?" value={form.serves_ministry} onChange={(v) => set('serves_ministry', v)} error={errors.serves_ministry} required />
-      {form.serves_ministry && (
-        <TextArea id="ministry_detail" label="Tell us how you serve" helper="Which ministry or outreach, and what do you do?" example="I lead the women's prayer group and help with youth outreach." value={form.ministry_detail} onChange={(v) => set('ministry_detail', v)} error={errors.ministry_detail} required />
-      )}
-    </div>
-  )
-}
-
 function StatementStep({ form, set, errors }: StepProps) {
   return (
     <div className="flex flex-col gap-7">
@@ -563,7 +545,6 @@ const REQUIRED_DOCS = [
   { type: 'id_document', label: 'South African ID document', hint: 'A clear copy of the front and back of your ID book or ID card.', required: true },
   { type: 'matric_certificate', label: 'Matric certificate or highest qualification', hint: 'A certified copy of your certificate.', required: true },
   { type: 'passport_photo', label: 'Passport-size photo', hint: 'A recent, colour photo with a plain white background.', required: true },
-  { type: 'church_letter', label: 'Letter from your church / pastor', hint: 'A letter confirming your membership, on church letterhead if possible.', required: false },
 ]
 
 function DocumentsStep({

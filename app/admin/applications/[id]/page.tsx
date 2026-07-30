@@ -60,7 +60,6 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
   const waSettings = waSettingsResult.status === 'fulfilled' ? waSettingsResult.value.data : null
   const kin = app.next_of_kin as Record<string, string> | null
   const edu = app.education as Record<string, string> | null
-  const ch = app.church_background as Record<string, string | boolean | null> | null
   const st = app.personal_statement as Record<string, string> | null
   const docs = (app.documents as DocRef[] | null) ?? []
 
@@ -131,17 +130,6 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
             {edu?.additional_qualifications && (
               <Row label="Additional">{edu.additional_qualifications}</Row>
             )}
-          </DataCard>
-
-          <DataCard title="Church & ministry">
-            <Row label="Church">{ch?.church_name as string ?? '—'}</Row>
-            <Row label="Denomination">{ch?.denomination as string ?? '—'}</Row>
-            <Row label="Location">{ch?.city as string ?? '—'}</Row>
-            <Row label="Pastor">{ch?.pastor_name as string ?? '—'}</Row>
-            <Row label="Role">{ch?.role as string ?? '—'}</Row>
-            <Row label="Years at church">{ch?.years_of_service as string ?? '—'}</Row>
-            <Row label="Serves in ministry">{ch?.serves_ministry === true ? 'Yes' : ch?.serves_ministry === false ? 'No' : '—'}</Row>
-            {ch?.ministry_detail && <Row label="Ministry detail">{ch.ministry_detail as string}</Row>}
           </DataCard>
 
           <DataCard title="Personal statement">

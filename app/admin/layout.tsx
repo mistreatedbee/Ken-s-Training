@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 
 const NAV = [
   { href: '/admin',           label: 'Applications', icon: FileText },
-  { href: '/admin/members',   label: 'Members',      icon: Users },
+  { href: '/admin/students',  label: 'Students',     icon: Users },
   { href: '/admin/whatsapp',  label: 'WhatsApp',     icon: MessageCircle },
   { href: '/admin/reports',   label: 'Reports',      icon: BarChart3 },
 ]

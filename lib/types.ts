@@ -1,6 +1,6 @@
 export type ApplicationStatus = 'submitted' | 'under_review' | 'approved' | 'rejected'
 
-export type DocumentType = 'id_document' | 'matric_certificate' | 'church_letter' | 'passport_photo' | 'other'
+export type DocumentType = 'id_document' | 'matric_certificate' | 'passport_photo' | 'other'
 
 export interface DocRef {
   type: DocumentType
@@ -45,17 +45,6 @@ export interface Education {
   additional_qualifications: string
 }
 
-export interface ChurchBackground {
-  church_name: string
-  denomination: string
-  city: string
-  role: string
-  years_of_service: string
-  pastor_name: string
-  serves_ministry: boolean | null
-  ministry_detail: string
-}
-
 export interface PersonalStatement {
   motivation: string
   calling: string
@@ -93,14 +82,13 @@ export interface WhatsAppSettings {
   auto_send_on_rejection: boolean
 }
 
-export interface Member {
+export interface Student {
   id: string
-  member_number: string | null
+  student_number: string | null
   application_id: string | null
   full_name: string
   phone: string | null
   email: string | null
-  church: string | null
   programme: string | null
   status: 'active' | 'inactive' | 'suspended'
   joined_date: string
@@ -116,7 +104,6 @@ export interface Application {
   contact_details: ContactDetails | null
   next_of_kin: NextOfKin | null
   education: Education | null
-  church_background: ChurchBackground | null
   personal_statement: PersonalStatement | null
   documents: DocRef[] | null
   declaration: boolean
