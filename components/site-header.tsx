@@ -13,7 +13,7 @@ export function SiteHeader() {
             src="/kti-header-logo.png"
             imgWidth={1536}
             imgHeight={1024}
-            imgClassName="h-14 w-auto shrink-0 object-contain sm:h-16"
+            imgClassName="h-20 w-auto shrink-0 object-contain sm:h-24"
           />
         </Link>
         <Link
