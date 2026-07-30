@@ -9,7 +9,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <Link href="/" className="text-foreground" aria-label="Ken's Training Institute home">
-          <BrandLogo imgClassName="h-9 w-auto shrink-0 object-contain sm:h-11" />
+          <BrandLogo imgClassName="h-14 w-auto shrink-0 object-contain sm:h-16" />
         </Link>
         <Link
           href="/apply"
