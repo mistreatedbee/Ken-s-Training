@@ -27,8 +27,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-4">
           <Link href="/" aria-label="Home">
             <BrandLogo
+              src="/kti-header-logo.png"
+              imgWidth={1536}
+              imgHeight={1024}
               className="text-sidebar-foreground"
-              imgClassName="h-8 w-auto object-contain rounded-md bg-white px-2 py-1"
+              imgClassName="h-9 w-auto object-contain"
             />
           </Link>
         </div>

@@ -1,9 +1,12 @@
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 
-// Logo file is 1894x830 (~2.28:1). Use height-based sizing (h-* w-auto) to
-// preserve the aspect ratio — a square box squashes the wide lockup.
+// Two logo files:
+//   kti-header-logo.png — icon mark only (1536x1024, ~1.5:1), used in header + sidebar
+//   kti-logo.png        — full wordmark (1894x830, ~2.28:1), used in login / footer
+// Use height-based sizing (h-* w-auto) to preserve each file's aspect ratio.
 export function BrandLogo({
+  src = "/kti-logo.png",
   className,
   showText = true,
   textClassName,
@@ -11,6 +14,7 @@ export function BrandLogo({
   imgWidth = 1894,
   imgHeight = 830,
 }: {
+  src?: string
   className?: string
   showText?: boolean
   textClassName?: string
@@ -21,7 +25,7 @@ export function BrandLogo({
   return (
     <span className={cn("flex items-center gap-3", className)}>
       <Image
-        src="/kti-logo.png"
+        src={src}
         alt="Ken's Training Institute logo"
         width={imgWidth}
         height={imgHeight}
