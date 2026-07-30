@@ -1,26 +1,30 @@
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 
+// Real file is 379x166 (~2.29:1). Sizing by height + w-auto keeps that
+// ratio intact — a square box would squash it down to a sliver.
 export function BrandLogo({
   className,
   showText = true,
   textClassName,
-  imgClassName = "size-10 shrink-0 object-contain sm:size-12",
-  imgSize = 48,
+  imgClassName = "h-10 w-auto shrink-0 object-contain",
+  imgWidth = 379,
+  imgHeight = 166,
 }: {
   className?: string
   showText?: boolean
   textClassName?: string
   imgClassName?: string
-  imgSize?: number
+  imgWidth?: number
+  imgHeight?: number
 }) {
   return (
     <span className={cn("flex items-center gap-3", className)}>
       <Image
         src="/kti-logo.jpeg"
         alt="Ken's Training Institute logo"
-        width={imgSize}
-        height={imgSize}
+        width={imgWidth}
+        height={imgHeight}
         className={imgClassName}
         priority
       />
