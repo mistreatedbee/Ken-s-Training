@@ -6,12 +6,11 @@ import type { WaTriggerType } from '@/lib/whatsapp'
 
 export async function getWhatsAppTemplates() {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('whatsapp_templates')
     .select('*')
     .order('trigger_type')
     .order('name')
-  if (error) throw error
   return data ?? []
 }
 
