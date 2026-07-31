@@ -17,7 +17,14 @@ interface SearchParams { status?: string; q?: string }
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const { status, q } = await searchParams
-  const supabase = await createClient()
+
+  let supabase: Awaited<ReturnType<typeof createClient>>
+  try {
+    supabase = await createClient()
+  } catch (err) {
+    console.error('[Admin] createClient failed:', err)
+    throw err
+  }
 
   let query = supabase
     .from('applications')
@@ -26,7 +33,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   if (status && status !== 'all') query = query.eq('status', status)
 
-  const { data: applications } = await query
+  const { data: applications, error: queryError } = await query
+  if (queryError) console.error('[Admin] applications query error:', queryError)
 
   // Filter by name / student number search
   const filtered = (applications ?? []).filter((app) => {
