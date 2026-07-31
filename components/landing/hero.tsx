@@ -31,7 +31,7 @@ export function Hero() {
       {/* Logo */}
       <div className="overflow-hidden rounded-[2rem] border border-border shadow-2xl ring-4 ring-primary/10">
         <Image
-          src="/kti-logo.jpeg"
+          src="/kti-logo.png"
           alt="Ken's Training Institute"
           width={176}
           height={176}
