@@ -29,13 +29,13 @@ export function Hero() {
       </div>
 
       {/* Logo */}
-      <div className="overflow-hidden rounded-[2rem] border border-border shadow-2xl ring-4 ring-primary/10">
+      <div className="rounded-2xl border border-border bg-card px-8 py-5 shadow-2xl ring-4 ring-primary/10">
         <Image
           src="/kti-logo.png"
           alt="Ken's Training Institute"
-          width={176}
-          height={176}
-          className="size-36 object-cover sm:size-44"
+          width={1894}
+          height={830}
+          className="h-28 w-auto object-contain sm:h-36"
           priority
         />
       </div>
