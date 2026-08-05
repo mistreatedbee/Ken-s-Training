@@ -289,49 +289,67 @@ export function ProgrammeCards({
   error?: string
   value: string
   onChange: (v: string) => void
-  programmes: { id: string; name: string; duration_years?: number | null; description: string | null }[]
+  programmes: { id: string; name: string; duration_years?: number | null; description: string | null; category?: string }[]
   required?: boolean
 }) {
+  // Group consecutive programmes by category
+  const groups: { category?: string; items: typeof programmes }[] = []
+  for (const p of programmes) {
+    const last = groups[groups.length - 1]
+    if (last && last.category === p.category) {
+      last.items.push(p)
+    } else {
+      groups.push({ category: p.category, items: [p] })
+    }
+  }
+
   return (
     <FieldShell label={label} helper={helper} error={error} required={required}>
-      <div className="flex flex-col gap-3">
-        {programmes.map((p) => {
-          const active = value === p.id
-          return (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => onChange(p.id)}
-              aria-pressed={active}
-              className={cn(
-                'flex items-start gap-4 rounded-xl border-2 p-5 text-left transition',
-                active
-                  ? 'border-primary bg-primary/5'
-                  : 'border-input bg-background hover:border-primary/50 hover:bg-muted',
-              )}
-            >
-              <span
-                className={cn(
-                  'mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border-2',
-                  active ? 'border-primary bg-primary text-primary-foreground' : 'border-input',
-                )}
-              >
-                {active && <Check className="size-4" />}
-              </span>
-              <div>
-                <p className="text-lg font-semibold text-foreground">{p.name}</p>
-                {!!p.duration_years && (
-                  <p className="mt-0.5 text-base text-muted-foreground">
-                    {p.duration_years} year{p.duration_years > 1 ? 's' : ''}
-                  </p>
-                )}
-                {p.description && (
-                  <p className="mt-1 text-base leading-relaxed text-muted-foreground">{p.description}</p>
-                )}
-              </div>
-            </button>
-          )
-        })}
+      <div className="flex flex-col gap-6">
+        {groups.map((group, gi) => (
+          <div key={gi} className="flex flex-col gap-3">
+            {group.category && (
+              <p className="text-base font-bold text-foreground">{group.category}</p>
+            )}
+            {group.items.map((p) => {
+              const active = value === p.id
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => onChange(p.id)}
+                  aria-pressed={active}
+                  className={cn(
+                    'flex items-start gap-4 rounded-xl border-2 p-5 text-left transition',
+                    active
+                      ? 'border-primary bg-primary/5'
+                      : 'border-input bg-background hover:border-primary/50 hover:bg-muted',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border-2',
+                      active ? 'border-primary bg-primary text-primary-foreground' : 'border-input',
+                    )}
+                  >
+                    {active && <Check className="size-4" />}
+                  </span>
+                  <div>
+                    <p className="text-lg font-semibold text-foreground">{p.name}</p>
+                    {!!p.duration_years && (
+                      <p className="mt-0.5 text-base text-muted-foreground">
+                        {p.duration_years} year{p.duration_years > 1 ? 's' : ''}
+                      </p>
+                    )}
+                    {p.description && (
+                      <p className="mt-1 text-base leading-relaxed text-muted-foreground">{p.description}</p>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        ))}
       </div>
     </FieldShell>
   )

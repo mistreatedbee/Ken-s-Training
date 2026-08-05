@@ -43,6 +43,8 @@ const PROGRAMMES = [
   { id: 'Praise and Worship Programme', name: 'Praise and Worship Programme', description: null },
   { id: 'Diploma in Theology', name: 'Diploma in Theology', description: null },
   { id: 'Ordination', name: 'Ordination', description: null },
+  { id: 'How to manufacture your own Perfume', name: 'How to manufacture your own Perfume', description: null, category: 'Skill Development Programme' },
+  { id: 'How to manufacture the Detergents', name: 'How to manufacture the Detergents', description: null, category: 'Skill Development Programme' },
 ]
 
 type DocRef = { type: string; path: string; name: string; size: number }
