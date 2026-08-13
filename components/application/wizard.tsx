@@ -64,6 +64,7 @@ export function ApplicationWizard() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [uploading, setUploading] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const topRef = useRef<HTMLDivElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -133,10 +134,13 @@ export function ApplicationWizard() {
 
   const handleUpload = async (docType: string, file: File) => {
     setUploading(docType)
+    setUploadError(null)
     const supabase = createClient()
     const path = `${sessionId}/${docType}-${Date.now()}-${file.name}`
     const { error } = await supabase.storage.from('application-documents').upload(path, file)
-    if (!error) {
+    if (error) {
+      setUploadError(error.message || 'Upload failed. Please try again.')
+    } else {
       const newDoc: DocRef = { type: docType, path, name: file.name, size: file.size }
       setDocs((prev) => {
         const updated = [...prev.filter((d) => d.type !== docType), newDoc]
@@ -149,7 +153,12 @@ export function ApplicationWizard() {
 
   const handleRemoveDoc = async (doc: DocRef) => {
     const supabase = createClient()
-    await supabase.storage.from('application-documents').remove([doc.path])
+    setUploadError(null)
+    const { error } = await supabase.storage.from('application-documents').remove([doc.path])
+    if (error) {
+      setUploadError(error.message || 'Could not remove the file. Please try again.')
+      return
+    }
     setDocs((prev) => {
       const updated = prev.filter((d) => d.path !== doc.path)
       localStorage.setItem('kti-docs', JSON.stringify(updated))
@@ -248,6 +257,7 @@ export function ApplicationWizard() {
             errors={errors}
             docs={docs}
             uploading={uploading}
+            uploadError={uploadError}
             onUpload={handleUpload}
             onRemove={handleRemoveDoc}
           />
@@ -561,10 +571,11 @@ const REQUIRED_DOCS = [
 ]
 
 function DocumentsStep({
-  form, set, errors, docs, uploading, onUpload, onRemove,
+  form, set, errors, docs, uploading, uploadError, onUpload, onRemove,
 }: StepProps & {
   docs: DocRef[]
   uploading: string | null
+  uploadError: string | null
   onUpload: (type: string, file: File) => void
   onRemove: (doc: DocRef) => void
 }) {
@@ -573,6 +584,12 @@ function DocumentsStep({
       <div className="flex flex-col gap-4">
         <p className="text-lg font-semibold text-foreground">Upload your documents</p>
         <p className="text-base text-muted-foreground">Files should be PDF, JPG, or PNG, and no larger than 5 MB each.</p>
+
+        {uploadError && (
+          <p className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-2 text-base font-medium text-destructive" role="alert">
+            <AlertCircle className="size-4 shrink-0" /> {uploadError}
+          </p>
+        )}
 
         {REQUIRED_DOCS.map((req) => {
           const uploaded = docs.find((d) => d.type === req.type)
