@@ -21,14 +21,29 @@ function LoginForm() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      setError('Incorrect email or password. Please try again.')
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        console.error('[Login] signInWithPassword failed:', error)
+        // A genuine auth rejection (wrong password, unknown user, etc.) comes
+        // back from Supabase with an HTTP status. Anything without one means
+        // the request never reached the server — a network/config problem,
+        // not a bad password — so say that instead of misleading the admin.
+        setError(
+          error.status
+            ? 'Incorrect email or password. Please try again.'
+            : `Could not reach the login server (${error.message}). This usually means the site's Supabase connection is misconfigured — contact your administrator.`,
+        )
+        setLoading(false)
+      } else {
+        router.push('/admin')
+        router.refresh()
+      }
+    } catch (err) {
+      console.error('[Login] createClient failed:', err)
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
       setLoading(false)
-    } else {
-      router.push('/admin')
-      router.refresh()
     }
   }
 
