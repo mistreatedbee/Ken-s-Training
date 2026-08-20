@@ -2,6 +2,7 @@ import { Users, BookOpen, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ExportStudentButton } from '@/components/admin/export-student-button'
 
 export const metadata = { title: 'Students — KTI Admin' }
 
@@ -114,6 +115,7 @@ export default async function StudentsPage() {
                         <span className="text-xs text-muted-foreground">
                           Joined {new Date(student.joined_date).toLocaleDateString('en-ZA', { dateStyle: 'medium' })}
                         </span>
+                        <ExportStudentButton student={student} />
                       </div>
                     </CardContent>
                   </Card>
