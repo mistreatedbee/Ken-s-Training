@@ -27,7 +27,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   if (status && status !== 'all') query = query.eq('status', status)
 
-  const { data: applications } = await query
+  const { data: applications, error: queryError } = await query
+  if (queryError) console.error('[Admin] applications query failed:', queryError)
 
   // Filter by name / student number search
   const filtered = (applications ?? []).filter((app) => {
@@ -89,7 +90,16 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </form>
       </div>
 
-      {filtered.length === 0 ? (
+      {queryError ? (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-10 text-center">
+          <FileText className="mx-auto size-12 text-destructive/40" />
+          <p className="mt-3 font-serif text-lg font-semibold text-destructive">Couldn&apos;t load applications</p>
+          <p className="mt-1 text-muted-foreground">{queryError.message}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This is a query error, not an empty list — try refreshing, and contact support if it persists.
+          </p>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
           <FileText className="mx-auto size-12 text-muted-foreground/40" />
           <p className="mt-3 font-serif text-lg font-semibold text-foreground">No applications found</p>
