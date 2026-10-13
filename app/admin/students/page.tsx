@@ -1,18 +1,24 @@
+import Link from 'next/link'
 import { Users, BookOpen, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { requireStaffPage } from '@/lib/auth'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ExportStudentButton } from '@/components/admin/export-student-button'
+import type { Student } from '@/lib/types'
 
 export const metadata = { title: 'Students — KTI Admin' }
 
+export const dynamic = 'force-dynamic'
+
 export default async function StudentsPage() {
+  await requireStaffPage()
   const supabase = await createClient()
 
   const [studentsResult] = await Promise.allSettled([
     supabase
       .from('students')
-      .select('*')
+      .select('*, courses:kti_courses(name)')
       .order('joined_date', { ascending: false }),
   ])
 
@@ -39,12 +45,12 @@ export default async function StudentsPage() {
     )
   }
 
-  const students = studentsResult.value.data ?? []
+  const students = (studentsResult.value.data ?? []) as (Student & { courses: { name: string } | null })[]
 
   // Group by programme
   const grouped = new Map<string, typeof students>()
   for (const s of students) {
-    const key = s.programme?.trim() || 'Uncategorised'
+    const key = s.courses?.name ?? (s.programme?.trim() || 'Uncategorised')
     if (!grouped.has(key)) grouped.set(key, [])
     grouped.get(key)!.push(s)
   }
@@ -94,7 +100,13 @@ export default async function StudentsPage() {
                           {student.full_name?.[0]?.toUpperCase() ?? '?'}
                         </div>
                         <div>
-                          <p className="font-semibold text-foreground">{student.full_name}</p>
+                          {student.application_id ? (
+                            <Link href={`/admin/applications/${student.application_id}`} className="font-semibold text-foreground hover:text-primary hover:underline">
+                              {student.full_name}
+                            </Link>
+                          ) : (
+                            <p className="font-semibold text-foreground">{student.full_name}</p>
+                          )}
                           <p className="font-mono text-xs text-muted-foreground">{student.student_number}</p>
                         </div>
                       </div>

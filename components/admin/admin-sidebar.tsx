@@ -3,22 +3,38 @@
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { BarChart3, FileText, LogOut, Menu, MessageCircle, Users, X } from 'lucide-react'
+import {
+  BarChart3, BookOpen, ClipboardList, FileText, History, KeyRound, LayoutDashboard,
+  LogOut, Menu, MessageCircle, Shield, Users, Wallet, X,
+} from 'lucide-react'
 import { BrandLogo } from '@/components/brand-logo'
 import { cn } from '@/lib/utils'
+import { can, ROLE_META, type Permission, type Role } from '@/lib/permissions'
 
-const NAV = [
-  { href: '/admin',           label: 'Applications', icon: FileText },
-  { href: '/admin/students',  label: 'Students',     icon: Users },
-  { href: '/admin/whatsapp',  label: 'WhatsApp',     icon: MessageCircle },
-  { href: '/admin/reports',   label: 'Reports',      icon: BarChart3 },
+const NAV: { href: string; label: string; icon: typeof FileText; permission?: Permission }[] = [
+  { href: '/admin',              label: 'Dashboard',      icon: LayoutDashboard },
+  { href: '/admin/applications', label: 'Applications',   icon: FileText },
+  { href: '/admin/students',     label: 'Students',       icon: Users },
+  { href: '/admin/courses',      label: 'Courses & fees', icon: BookOpen },
+  { href: '/admin/form',         label: 'Application form', icon: ClipboardList },
+  { href: '/admin/payments',     label: 'Payments',       icon: Wallet },
+  { href: '/admin/whatsapp',     label: 'WhatsApp',       icon: MessageCircle },
+  { href: '/admin/reports',      label: 'Reports',        icon: BarChart3 },
+  { href: '/admin/staff',        label: 'Staff & roles',  icon: Shield, permission: 'staff.manage' },
+  { href: '/admin/audit',        label: 'Audit log',      icon: History, permission: 'audit.view' },
+  { href: '/admin/account',      label: 'My account',     icon: KeyRound },
 ]
 
 interface Props {
   adminEmail: string
+  role: Role
 }
 
-export function AdminSidebar({ adminEmail }: Props) {
+function isActive(pathname: string, href: string) {
+  return href === '/admin' ? pathname === '/admin' : pathname === href || pathname.startsWith(`${href}/`)
+}
+
+export function AdminSidebar({ adminEmail, role }: Props) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
   const initials = adminEmail.slice(0, 2).toUpperCase()
@@ -87,14 +103,16 @@ export function AdminSidebar({ adminEmail }: Props) {
           </button>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1 p-3" aria-label="Admin navigation">
-          {NAV.map(({ href, label, icon: Icon }) => (
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3" aria-label="Admin navigation">
+          {NAV.filter((n) => !n.permission || can(role, n.permission)).map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
               onClick={() => setOpen(false)}
+              aria-current={isActive(pathname, href) ? 'page' : undefined}
               className={cn(
                 'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-sidebar-foreground/80 transition hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                isActive(pathname, href) && 'bg-sidebar-accent text-sidebar-foreground',
               )}
             >
               <Icon className="size-5" />
@@ -108,7 +126,10 @@ export function AdminSidebar({ adminEmail }: Props) {
             <div className="grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-primary text-xs font-bold text-sidebar-primary-foreground">
               {initials}
             </div>
-            <p className="min-w-0 truncate text-sm font-medium text-sidebar-foreground">{adminEmail}</p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-sidebar-foreground">{adminEmail}</p>
+              <p className="truncate text-xs text-sidebar-foreground/70">{ROLE_META[role].label}</p>
+            </div>
           </div>
           <form action="/auth/signout" method="POST">
             <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground">

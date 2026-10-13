@@ -1,4 +1,5 @@
-export type ApplicationStatus = 'submitted' | 'under_review' | 'approved' | 'rejected'
+import type { ApplicationStatus } from '@/lib/statuses'
+export type { ApplicationStatus }
 
 export type DocumentType = 'id_document' | 'matric_certificate' | 'passport_photo' | 'other'
 
@@ -86,6 +87,8 @@ export interface Student {
   id: string
   student_number: string | null
   application_id: string | null
+  course_id?: string | null
+  intake_id?: string | null
   full_name: string
   phone: string | null
   email: string | null

@@ -1,160 +1,215 @@
 import Link from 'next/link'
-import { FileText, MessageCircle, Search } from 'lucide-react'
+import { ArrowRight, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
+import { requireStaffPage } from '@/lib/auth'
+import { formatDateTime, formatMoney, type PriceQuote } from '@/lib/format'
+import { statusLabel } from '@/lib/statuses'
+import {
+  CourseStatusBadge, ErrorState, Notice, PageHeader, PageShell, StatCard,
+} from '@/components/admin/ui'
 
-export const metadata = { title: 'Applications — KTI Admin' }
+export const metadata = { title: 'Dashboard — KTI Admin' }
+export const dynamic = 'force-dynamic'
 
-const STATUS_META = {
-  submitted:    { label: 'Submitted',    variant: 'default' as const },
-  under_review: { label: 'Under review', variant: 'warning' as const },
-  approved:     { label: 'Approved',     variant: 'success' as const },
-  rejected:     { label: 'Rejected',     variant: 'destructive' as const },
+interface Report {
+  total: number
+  archived: number
+  by_status: Record<string, number>
 }
 
-interface SearchParams { status?: string; q?: string }
+interface CourseRow {
+  id: string
+  name: string
+  code: string
+  status: string
+  accepting_applications: boolean
+  application_deadline: string | null
+  capacity: number | null
+  current_price: PriceQuote | null
+  application_count: number
+  enrolled_count: number
+  pending_count: number
+}
 
-export default async function AdminPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { status, q } = await searchParams
+interface EventRow {
+  id: string
+  event_type: string
+  from_status: string | null
+  to_status: string | null
+  actor_email: string | null
+  created_at: string
+  application_id: string
+  applications: { applicant_name: string | null; student_number: string | null } | null
+}
 
+function describeEvent(e: EventRow) {
+  switch (e.event_type) {
+    case 'submitted': return 'submitted an application'
+    case 'status_changed': return `changed status ${statusLabel(e.from_status ?? '')} → ${statusLabel(e.to_status ?? '')}`
+    case 'record_edited': return 'edited applicant details'
+    case 'note_added': return 'added a note'
+    case 'archived': return 'archived the application'
+    case 'restored': return 'restored the application'
+    case 'payment_recorded': return 'recorded a payment'
+    case 'payment_voided': return 'voided a payment'
+    case 'message_prepared': return 'prepared a WhatsApp message'
+    default: return e.event_type
+  }
+}
+
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ denied?: string }> }) {
+  const { denied } = await searchParams
+  await requireStaffPage()
   const supabase = await createClient()
 
-  let query = supabase
-    .from('applications')
-    .select('id, student_number, status, submitted_at, programme, personal_info, contact_details')
-    .order('submitted_at', { ascending: false })
+  const [reportRes, coursesRes, eventsRes, studentsRes] = await Promise.all([
+    supabase.rpc('admin_report'),
+    supabase.from('course_overview')
+      .select('id, name, code, status, accepting_applications, application_deadline, capacity, current_price, application_count, enrolled_count, pending_count')
+      .in('status', ['active', 'inactive', 'draft'])
+      .order('sort_order').order('name'),
+    supabase.from('application_events')
+      .select('id, event_type, from_status, to_status, actor_email, created_at, application_id, applications(applicant_name, student_number)')
+      .order('created_at', { ascending: false })
+      .limit(12),
+    supabase.from('students').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+  ])
 
-  if (status && status !== 'all') query = query.eq('status', status)
+  const loadError = reportRes.error ?? coursesRes.error ?? eventsRes.error ?? studentsRes.error
+  if (loadError) {
+    console.error('[Admin dashboard] query failed:', loadError)
+    return (
+      <PageShell>
+        <PageHeader title="Dashboard" />
+        <ErrorState title="Couldn't load the dashboard" message={loadError.message} />
+      </PageShell>
+    )
+  }
 
-  const { data: applications, error: queryError } = await query
-  if (queryError) console.error('[Admin] applications query failed:', queryError)
-
-  // Filter by name / student number search
-  const filtered = (applications ?? []).filter((app) => {
-    if (!q) return true
-    const pi = app.personal_info as { first_name?: string; last_name?: string } | null
-    const name = `${pi?.first_name ?? ''} ${pi?.last_name ?? ''}`.toLowerCase()
-    const sn = (app.student_number ?? '').toLowerCase()
-    return name.includes(q.toLowerCase()) || sn.includes(q.toLowerCase())
-  })
-
-  const counts = (applications ?? []).reduce<Record<string, number>>((acc, app) => {
-    acc[app.status] = (acc[app.status] ?? 0) + 1
-    return acc
-  }, {})
-
-  const statusFilters = [
-    { value: 'all',          label: 'All',          count: (applications ?? []).length },
-    { value: 'submitted',    label: 'Submitted',    count: counts.submitted ?? 0 },
-    { value: 'under_review', label: 'Under review', count: counts.under_review ?? 0 },
-    { value: 'approved',     label: 'Approved',     count: counts.approved ?? 0 },
-    { value: 'rejected',     label: 'Rejected',     count: counts.rejected ?? 0 },
-  ]
+  const report = reportRes.data as Report
+  const s = report.by_status ?? {}
+  const courses = (coursesRes.data ?? []) as CourseRow[]
+  const events = (eventsRes.data ?? []) as unknown as EventRow[]
+  const active = courses.filter((c) => c.status === 'active')
+  const openNow = active.filter((c) => c.accepting_applications && (!c.application_deadline || c.application_deadline >= new Date().toISOString().slice(0, 10)))
+  const noPrice = active.filter((c) => !c.current_price)
 
   return (
-    <div className="px-6 py-8">
-      <div className="mb-8">
-        <h1 className="font-serif text-3xl font-bold text-foreground">Applications</h1>
-        <p className="mt-1 text-muted-foreground">{(applications ?? []).length} total submissions</p>
+    <PageShell>
+      <PageHeader
+        title="Dashboard"
+        description="An overview of applications, courses and admissions activity."
+        actions={
+          <form action="/admin/applications" method="GET" className="relative w-full sm:w-80">
+            <label htmlFor="dash-q" className="sr-only">Search applications</label>
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              id="dash-q"
+              name="q"
+              placeholder="Search name, email, reference…"
+              className="h-10 w-full rounded-xl border border-border bg-card pl-9 pr-4 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/50"
+            />
+          </form>
+        }
+      />
+
+      {denied && <div className="mb-6"><Notice tone="warning">You don&apos;t have permission to open that page.</Notice></div>}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Total applicants" value={report.total} href="/admin/applications" />
+        <StatCard label="New — awaiting review" value={s.submitted ?? 0} href="/admin/applications?status=submitted" tone={(s.submitted ?? 0) > 0 ? 'warning' : 'default'} />
+        <StatCard label="In review / info requested" value={(s.under_review ?? 0) + (s.info_requested ?? 0)} href="/admin/applications?status=open" />
+        <StatCard label="Accepted" value={s.approved ?? 0} href="/admin/applications?status=approved" tone="success" />
+        <StatCard label="Rejected / withdrawn" value={(s.rejected ?? 0) + (s.withdrawn ?? 0)} href="/admin/applications?status=closed" />
+        <StatCard label="Waitlisted" value={s.waitlisted ?? 0} href="/admin/applications?status=waitlisted" />
+        <StatCard label="Active enrolments" value={studentsRes.count ?? 0} href="/admin/students" hint="Students with an active record" />
+        <StatCard label="Courses open for applications" value={`${openNow.length} / ${active.length}`} href="/admin/courses" hint="Open / active courses" />
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {statusFilters.map((f) => (
-            <Link
-              key={f.value}
-              href={`/admin?status=${f.value}${q ? `&q=${q}` : ''}`}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                (status ?? 'all') === f.value
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-card text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              {f.label}
-              <span className="rounded-full bg-black/10 px-1.5 py-0.5 text-xs">{f.count}</span>
-            </Link>
-          ))}
-        </div>
-
-        <form method="GET" className="relative">
-          {status && <input type="hidden" name="status" value={status} />}
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="Search by name or reference number…"
-            className="h-10 w-full rounded-xl border border-border bg-card pl-9 pr-4 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/50 sm:w-72"
-          />
-        </form>
-      </div>
-
-      {queryError ? (
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-10 text-center">
-          <FileText className="mx-auto size-12 text-destructive/40" />
-          <p className="mt-3 font-serif text-lg font-semibold text-destructive">Couldn&apos;t load applications</p>
-          <p className="mt-1 text-muted-foreground">{queryError.message}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            This is a query error, not an empty list — try refreshing, and contact support if it persists.
-          </p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
-          <FileText className="mx-auto size-12 text-muted-foreground/40" />
-          <p className="mt-3 font-serif text-lg font-semibold text-foreground">No applications found</p>
-          <p className="mt-1 text-muted-foreground">
-            {q ? 'Try a different search term.' : 'Submitted applications will appear here.'}
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {filtered.map((app) => {
-            const meta = STATUS_META[app.status as keyof typeof STATUS_META]
-            const pi = app.personal_info as { first_name?: string; last_name?: string } | null
-            const name = `${pi?.first_name ?? ''} ${pi?.last_name ?? ''}`.trim() || 'Unknown applicant'
-
-            const cd = app.contact_details as { whatsapp?: string; phone?: string } | null
-            const waRaw = cd?.whatsapp || cd?.phone || ''
-            const waNumber = waRaw ? waRaw.replace(/\D/g, '').replace(/^0/, '27') : ''
-            const waUrl = waNumber ? `https://wa.me/${waNumber}` : null
-
-            return (
-              <Card key={app.id} className="transition hover:border-primary/40 hover:shadow-md">
-                <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
-                  <Link href={`/admin/applications/${app.id}`} className="flex flex-1 items-center gap-4">
-                    <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-lg font-bold text-primary">
-                      {name[0]?.toUpperCase() ?? '?'}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-foreground">{name}</p>
-                      <p className="text-sm text-muted-foreground">{app.programme ?? '—'}</p>
-                      <p className="font-mono text-xs text-muted-foreground">{app.student_number}</p>
-                    </div>
-                  </Link>
-                  <div className="flex flex-wrap items-center gap-3">
-                    {meta && <Badge variant={meta.variant}>{meta.label}</Badge>}
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(app.submitted_at).toLocaleDateString('en-ZA', { dateStyle: 'medium' })}
-                    </span>
-                    {waUrl && (
-                      <a
-                        href={waUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={`WhatsApp ${name}`}
-                        className="inline-flex items-center rounded-lg px-2 py-1.5 text-[#25D366] hover:bg-[#25D366]/10"
-                      >
-                        <MessageCircle className="size-4" />
-                      </a>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+      {noPrice.length > 0 && (
+        <div className="mt-6">
+          <Notice tone="warning">
+            {noPrice.length} active course{noPrice.length === 1 ? ' has' : 's have'} no fees set, so applicants see
+            &ldquo;Fees to be confirmed&rdquo;.{' '}
+            <Link href="/admin/courses?filter=no_price" className="font-semibold underline">Set fees</Link>
+          </Notice>
         </div>
       )}
-    </div>
+
+      <div className="mt-8 grid gap-6 xl:grid-cols-5">
+        <section className="rounded-2xl border border-border bg-card p-6 xl:col-span-3" aria-labelledby="courses-heading">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 id="courses-heading" className="font-serif text-xl font-semibold">Courses &amp; pricing</h2>
+            <Link href="/admin/courses" className="flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+              Manage <ArrowRight className="size-4" />
+            </Link>
+          </div>
+          {courses.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No courses yet.</p>
+          ) : (
+            <div className="-mx-6 overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="px-6 py-2 font-semibold">Course</th>
+                    <th className="px-2 py-2 font-semibold">Status</th>
+                    <th className="px-2 py-2 text-right font-semibold">Current fees</th>
+                    <th className="px-2 py-2 text-right font-semibold">Pending</th>
+                    <th className="px-6 py-2 text-right font-semibold">Enrolled</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {courses.slice(0, 12).map((c) => (
+                    <tr key={c.id} className="border-b border-border last:border-0">
+                      <td className="px-6 py-2.5">
+                        <Link href={`/admin/courses/${c.id}`} className="font-medium text-foreground hover:text-primary hover:underline">{c.name}</Link>
+                        {c.status === 'active' && !c.accepting_applications && <span className="ml-2 text-xs text-muted-foreground">(closed)</span>}
+                      </td>
+                      <td className="px-2 py-2.5"><CourseStatusBadge status={c.status} /></td>
+                      <td className="px-2 py-2.5 text-right">
+                        {c.current_price ? formatMoney(c.current_price.total, c.current_price.currency) : <span className="text-amber-700">Not set</span>}
+                      </td>
+                      <td className="px-2 py-2.5 text-right">{c.pending_count}</td>
+                      <td className="px-6 py-2.5 text-right">{c.enrolled_count}{c.capacity ? ` / ${c.capacity}` : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {courses.length > 12 && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Showing 12 of {courses.length}. <Link href="/admin/courses" className="text-primary hover:underline">See all courses</Link>
+            </p>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-border bg-card p-6 xl:col-span-2" aria-labelledby="activity-heading">
+          <h2 id="activity-heading" className="mb-4 font-serif text-xl font-semibold">Recent activity</h2>
+          {events.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No activity yet.</p>
+          ) : (
+            <ol className="flex flex-col gap-3">
+              {events.map((e) => (
+                <li key={e.id} className="text-sm">
+                  <Link href={`/admin/applications/${e.application_id}`} className="group block rounded-lg p-2 -m-2 hover:bg-muted">
+                    <p className="text-foreground">
+                      <span className="font-medium">{e.event_type === 'submitted' ? (e.applications?.applicant_name || 'Applicant') : (e.actor_email ?? 'System')}</span>{' '}
+                      {describeEvent(e)}
+                      {e.event_type !== 'submitted' && e.applications?.applicant_name && (
+                        <> for <span className="font-medium">{e.applications.applicant_name}</span></>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDateTime(e.created_at)}{e.applications?.student_number ? ` · ${e.applications.student_number}` : ''}
+                    </p>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      </div>
+    </PageShell>
   )
 }

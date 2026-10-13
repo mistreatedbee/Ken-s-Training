@@ -1,4 +1,6 @@
-export type WaTriggerType = 'submission' | 'approved' | 'rejected' | 'under_review' | 'manual'
+export type WaTriggerType =
+  | 'submission' | 'under_review' | 'info_requested' | 'approved' | 'waitlisted'
+  | 'rejected' | 'withdrawn' | 'course_update' | 'admission_instructions' | 'manual'
 
 export interface MessageContext {
   applicantName: string

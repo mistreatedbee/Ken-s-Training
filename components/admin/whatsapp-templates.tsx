@@ -9,11 +9,16 @@ import { saveWhatsAppTemplate, deleteWhatsAppTemplate, saveWhatsAppSettings } fr
 import type { WhatsAppTemplate, WhatsAppSettings } from '@/lib/types'
 
 const TRIGGER_OPTIONS = [
-  { value: 'submission',   label: 'Application Submitted' },
-  { value: 'approved',     label: 'Application Approved' },
-  { value: 'rejected',     label: 'Application Rejected' },
-  { value: 'under_review', label: 'Now Under Review' },
-  { value: 'manual',       label: 'Manual / General' },
+  { value: 'submission',             label: 'Application Submitted' },
+  { value: 'under_review',           label: 'Now Under Review' },
+  { value: 'info_requested',         label: 'More Information Needed' },
+  { value: 'approved',               label: 'Application Accepted' },
+  { value: 'waitlisted',             label: 'Waitlisted' },
+  { value: 'rejected',               label: 'Application Rejected' },
+  { value: 'withdrawn',              label: 'Application Withdrawn' },
+  { value: 'course_update',          label: 'Course / Intake Change' },
+  { value: 'admission_instructions', label: 'Admission Instructions' },
+  { value: 'manual',                 label: 'Manual / General' },
 ]
 
 const TRIGGER_COLOURS: Record<string, string> = {
@@ -21,6 +26,9 @@ const TRIGGER_COLOURS: Record<string, string> = {
   approved:     'bg-success/15 text-success',
   rejected:     'bg-destructive/15 text-destructive',
   under_review: 'bg-amber-500/15 text-amber-700',
+  info_requested: 'bg-amber-500/15 text-amber-700',
+  waitlisted:   'bg-secondary text-secondary-foreground',
+  withdrawn:    'bg-muted text-muted-foreground',
   manual:       'bg-muted text-muted-foreground',
 }
 
@@ -47,6 +55,7 @@ function TemplateForm({
 }) {
   const [form, setForm] = useState<EditState>(initial)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const patch = (key: keyof EditState, value: unknown) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -55,15 +64,18 @@ function TemplateForm({
     patch('body', form.body + ph)
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.body.trim()) return
+    if (!form.name.trim() || !form.body.trim()) { setError('Name and message are required.'); return }
     setSaving(true)
+    setError(null)
     const result = await saveWhatsAppTemplate(form)
     setSaving(false)
     if (result.success) onSave(form)
+    else setError(result.error)
   }
 
   return (
     <div className="space-y-4 rounded-2xl border border-primary/30 bg-primary/5 p-5">
+      {error && <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-1.5 block text-sm font-semibold text-muted-foreground">Template name</label>
@@ -229,7 +241,6 @@ export function WhatsAppTemplates({
 
         <div className="space-y-4">
           {[
-            { key: 'auto_send_on_submission' as const, label: 'When an application is submitted',   trigger: 'submission' },
             { key: 'auto_send_on_approval'   as const, label: 'When an application is approved',    trigger: 'approved' },
             { key: 'auto_send_on_rejection'  as const, label: 'When an application is rejected',    trigger: 'rejected' },
           ].map((item) => (

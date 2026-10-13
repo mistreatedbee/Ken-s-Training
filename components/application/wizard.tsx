@@ -1,66 +1,93 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2,
-  Clock, Copy, FileText, Home, Loader2, RotateCcw,
+  Clock, Copy, Eye, FileText, Home, Loader2, RotateCcw,
   Save, Send, ShieldCheck, Sparkles, Upload, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { createClient } from '@/lib/supabase/client'
 import {
-  emptyForm, STEP_KEYS, STEP_META, validateStep, formToDbPayload,
-  type KtiForm, type Errors, type StepKey,
-} from './form-model'
-import {
-  ProgrammeCards, RadioCards, SelectField, TextArea, TextField, YesNo,
-} from './form-fields'
+  CORE_FIELDS, applicationsOpen, enabledSteps, fieldMaxLength, isFieldVisible,
+  validateDeclaration, validateDocuments, validateStep,
+  type Answers, type DeclarationAnswers, type Errors, type FieldConfig, type FormConfig,
+} from '@/lib/form-config'
+import type { CatalogCourse } from '@/lib/catalog'
+import { submitApplication, uploadDocument, removeDocument, type UploadedDoc } from '@/app/actions/apply'
+import { RadioCards, SelectField, TextArea, TextField, YesNo } from './form-fields'
+import { CoursePicker, FeeBreakdown } from './course-picker'
 
-const PROVINCES = [
-  'Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo',
-  'Mpumalanga', 'Northern Cape', 'North West', 'Western Cape',
-]
-
-const QUALIFICATIONS = [
-  'Grade 10', 'Grade 11', 'Grade 12 / Matric', 'Certificate', 'Diploma', 'Degree', 'Postgraduate', 'Other',
-]
-
-// Static programmes (no DB table needed)
-const PROGRAMMES = [
-  { id: 'Pastoral Care Training (Narrative Community-Based)', name: 'Pastoral Care Training (Narrative Community-Based)', description: null },
-  { id: 'Starting and Sustaining Community Projects', name: 'Starting and Sustaining Community Projects', description: null },
-  { id: 'Crisis and Trauma Support', name: 'Crisis and Trauma Support', description: null },
-  { id: 'Early Childhood Development', name: 'Early Childhood Development', description: null },
-  { id: 'Peace Building', name: 'Peace Building', description: null },
-  { id: 'From Victims to Agents', name: 'From Victims to Agents', description: null },
-  { id: 'Narrative Group Counselling (offered by Prof Roelf Schoeman – Centre for Faith and Community)', name: 'Narrative Group Counselling (offered by Prof Roelf Schoeman – Centre for Faith and Community)', description: null },
-  { id: 'Moderator (SAQA US 117759)', name: 'Moderator (SAQA US 117759)', description: null },
-  { id: 'Assessor (SAQA US 115753)', name: 'Assessor (SAQA US 115753)', description: null },
-  { id: 'Facilitator (SAQA US 117871)', name: 'Facilitator (SAQA US 117871)', description: null },
-  { id: 'Narrative Group Counselling (offered by Apostle Kenny Mokgope)', name: 'Narrative Group Counselling (offered by Apostle Kenny Mokgope)', description: null },
-  { id: 'Praise and Worship Programme', name: 'Praise and Worship Programme', description: null },
-  { id: 'Diploma in Theology', name: 'Diploma in Theology', description: null },
-  { id: 'Ordination', name: 'Ordination', description: null },
-  { id: 'How to manufacture your own Perfume', name: 'How to manufacture your own Perfume', description: null, category: 'Skill Development Programme' },
-  { id: 'How to manufacture the Detergents', name: 'How to manufacture the Detergents', description: null, category: 'Skill Development Programme' },
-]
-
-type DocRef = { type: string; path: string; name: string; size: number }
 type Phase = 'welcome' | 'form' | 'submitted'
 type SaveState = 'idle' | 'saving' | 'saved'
 
-export function ApplicationWizard() {
+interface Draft {
+  courseId: string
+  intakeId: string
+  studyMode: string
+  answers: Answers
+  declaration: DeclarationAnswers
+}
+
+const DRAFT_KEY = 'kti-draft-v2'
+const DOCS_KEY = 'kti-docs-v2'
+const SESSION_KEY = 'kti-session-id'
+const LEGACY_DRAFT_KEY = 'kti-draft'
+const LEGACY_DOCS_KEY = 'kti-docs'
+
+const emptyDeclaration: DeclarationAnswers = { declaration: null, signature: '', signature_date: '' }
+
+function emptyDraft(): Draft {
+  return { courseId: '', intakeId: '', studyMode: '', answers: { nationality: 'South African' }, declaration: emptyDeclaration }
+}
+
+/** Drafts saved by the previous (hard-coded) form used flat keys and the course name. */
+function migrateLegacyDraft(raw: Record<string, unknown>, courses: CatalogCourse[]): Draft {
+  const { programme, declaration, signature, signature_date, ...rest } = raw
+  return {
+    courseId: courses.find((c) => c.name === programme)?.id ?? '',
+    intakeId: '',
+    studyMode: '',
+    answers: rest as Answers,
+    declaration: {
+      declaration: typeof declaration === 'boolean' ? declaration : null,
+      signature: typeof signature === 'string' ? signature : '',
+      signature_date: typeof signature_date === 'string' ? signature_date : '',
+    },
+  }
+}
+
+const storage = {
+  get(key: string) { try { return localStorage.getItem(key) } catch { return null } },
+  set(key: string, v: string) { try { localStorage.setItem(key, v) } catch { /* private mode */ } },
+  remove(key: string) { try { localStorage.removeItem(key) } catch { /* private mode */ } },
+}
+
+export function ApplicationWizard({
+  form, courses, preview = false,
+}: {
+  form: FormConfig
+  courses: CatalogCourse[]
+  /** Admin preview: nothing is saved, uploaded or submitted. */
+  preview?: boolean
+}) {
+  const steps = useMemo(() => enabledSteps(form), [form])
+  const stepKeys = useMemo(() => ['course', ...steps.map((s) => s.key), 'documents'], [steps])
+  const shortLabels = useMemo(
+    () => [form.course_step.short, ...steps.map((s) => s.short), form.documents_step.short],
+    [form, steps],
+  )
+
   const [phase, setPhase] = useState<Phase>('welcome')
   const [hasDraft, setHasDraft] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
-  const [form, setForm] = useState<KtiForm>(emptyForm)
+  const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [errors, setErrors] = useState<Errors>({})
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [sessionId, setSessionId] = useState('')
-  const [docs, setDocs] = useState<DocRef[]>([])
-  const [studentNumber, setStudentNumber] = useState('')
+  const [docs, setDocs] = useState<UploadedDoc[]>([])
+  const [reference, setReference] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [uploading, setUploading] = useState<string | null>(null)
@@ -69,25 +96,54 @@ export function ApplicationWizard() {
   const topRef = useRef<HTMLDivElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const isOpen = applicationsOpen(form)
+
   // Load draft from localStorage after mount (avoids SSR mismatch)
   useEffect(() => {
-    const draft = localStorage.getItem('kti-draft')
-    const savedDocs = localStorage.getItem('kti-docs')
-    let sid = localStorage.getItem('kti-session-id')
+    if (preview) return
+    let sid = storage.get(SESSION_KEY)
     if (!sid) {
       sid = crypto.randomUUID()
-      localStorage.setItem('kti-session-id', sid)
+      storage.set(SESSION_KEY, sid)
     }
     setSessionId(sid)
-    if (draft) {
-      setForm(JSON.parse(draft))
-      setHasDraft(true)
+    try {
+      const saved = storage.get(DRAFT_KEY)
+      const legacy = storage.get(LEGACY_DRAFT_KEY)
+      if (saved) {
+        setDraft({ ...emptyDraft(), ...JSON.parse(saved) })
+        setHasDraft(true)
+      } else if (legacy) {
+        setDraft(migrateLegacyDraft(JSON.parse(legacy), courses))
+        setHasDraft(true)
+      }
+      // Documents from the old form were uploaded to a different location
+      // and must be uploaded again.
+      storage.remove(LEGACY_DRAFT_KEY)
+      storage.remove(LEGACY_DOCS_KEY)
+      const savedDocs = storage.get(DOCS_KEY)
+      if (savedDocs) setDocs(JSON.parse(savedDocs))
+    } catch {
+      // Corrupt draft — start clean.
     }
-    if (savedDocs) setDocs(JSON.parse(savedDocs))
+  }, [preview, courses])
+
+  const update = useCallback((patch: Partial<Draft>, clear: string[] = []) => {
+    setDraft((d) => ({ ...d, ...patch }))
+    if (clear.length) setErrors((e) => {
+      const next = { ...e }
+      for (const k of clear) delete next[k]
+      return next
+    })
   }, [])
 
-  const set = useCallback(<K extends keyof KtiForm>(key: K, value: KtiForm[K]) => {
-    setForm((f) => ({ ...f, [key]: value }))
+  const setAnswer = useCallback((key: string, value: string | boolean | null) => {
+    setDraft((d) => ({ ...d, answers: { ...d.answers, [key]: value } }))
+    setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e))
+  }, [])
+
+  const setDecl = useCallback(<K extends keyof DeclarationAnswers>(key: K, value: DeclarationAnswers[K]) => {
+    setDraft((d) => ({ ...d, declaration: { ...d.declaration, [key]: value } }))
     setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e))
   }, [])
 
@@ -95,121 +151,177 @@ export function ApplicationWizard() {
 
   // Autosave to localStorage
   useEffect(() => {
-    if (phase !== 'form') return
+    if (phase !== 'form' || preview) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
     setSaveState('saving')
     saveTimer.current = setTimeout(() => {
-      localStorage.setItem('kti-draft', JSON.stringify(form))
+      storage.set(DRAFT_KEY, JSON.stringify(draft))
       setSaveState('saved')
     }, 800)
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form])
+  }, [draft, phase, preview])
 
-  const stepKey = STEP_KEYS[stepIndex]
+  const stepKey = stepKeys[stepIndex]
+  const course = courses.find((c) => c.id === draft.courseId && c.open_for_applications)
+
+  function validateCourseStep(): Errors {
+    const e: Errors = {}
+    if (!course) { e.course = 'Please select a course'; return e }
+    if (course.intakes.length > 0 && !course.intakes.some((i) => i.id === draft.intakeId)) {
+      e.intake = 'Please choose an intake'
+    }
+    if (course.study_modes.length > 0 && !course.study_modes.includes(draft.studyMode)) {
+      e.study_mode = 'Please choose how you would like to study'
+    }
+    return e
+  }
+
+  function validateCurrent(): Errors {
+    if (stepKey === 'course') return validateCourseStep()
+    if (stepKey === 'documents') {
+      return { ...validateDocuments(form, docs), ...validateDeclaration(draft.declaration) }
+    }
+    const step = steps.find((s) => s.key === stepKey)
+    return step ? validateStep(step, draft.answers) : {}
+  }
 
   const goNext = () => {
-    const errs = validateStep(stepKey, form)
+    const errs = validateCurrent()
     if (Object.keys(errs).length > 0) { setErrors(errs); scrollTop(); return }
-    setStepIndex((i) => Math.min(i + 1, STEP_KEYS.length - 1))
+    setStepIndex((i) => Math.min(i + 1, stepKeys.length - 1))
     setErrors({})
     scrollTop()
   }
 
   const goBack = () => { setStepIndex((i) => Math.max(i - 1, 0)); setErrors({}); scrollTop() }
-  const jumpTo = (k: StepKey) => { setStepIndex(STEP_KEYS.indexOf(k)); scrollTop() }
+  const jumpTo = (i: number) => { setStepIndex(i); scrollTop() }
 
   const startFresh = () => {
     const newId = crypto.randomUUID()
-    localStorage.setItem('kti-session-id', newId)
-    localStorage.removeItem('kti-draft')
-    localStorage.removeItem('kti-docs')
+    if (!preview) {
+      storage.set(SESSION_KEY, newId)
+      storage.remove(DRAFT_KEY)
+      storage.remove(DOCS_KEY)
+    }
     setSessionId(newId)
-    setForm(emptyForm)
+    setDraft(emptyDraft())
     setDocs([])
     setStepIndex(0)
     setHasDraft(false)
     setPhase('form')
   }
 
+  const saveDocs = (updated: UploadedDoc[]) => {
+    setDocs(updated)
+    if (!preview) storage.set(DOCS_KEY, JSON.stringify(updated))
+  }
+
   const handleUpload = async (docType: string, file: File) => {
+    if (preview) { setUploadError('Uploads are disabled in preview mode.'); return }
     setUploading(docType)
     setUploadError(null)
-    const supabase = createClient()
-    const path = `${sessionId}/${docType}-${Date.now()}-${file.name}`
-    const { error } = await supabase.storage.from('application-documents').upload(path, file)
-    if (error) {
-      setUploadError(error.message || 'Upload failed. Please try again.')
+    const fd = new FormData()
+    fd.set('draftId', sessionId)
+    fd.set('docType', docType)
+    fd.set('file', file)
+    const res = await uploadDocument(fd)
+    if (!res.ok) {
+      setUploadError(res.error)
     } else {
-      const newDoc: DocRef = { type: docType, path, name: file.name, size: file.size }
-      setDocs((prev) => {
-        const updated = [...prev.filter((d) => d.type !== docType), newDoc]
-        localStorage.setItem('kti-docs', JSON.stringify(updated))
-        return updated
-      })
+      const previous = docs.find((d) => d.type === docType)
+      if (previous) void removeDocument(sessionId, previous.path)
+      saveDocs([...docs.filter((d) => d.type !== docType), res.doc])
+      setErrors((e) => ({ ...e, [`doc_${docType}`]: undefined }))
     }
     setUploading(null)
   }
 
-  const handleRemoveDoc = async (doc: DocRef) => {
-    const supabase = createClient()
+  const handleRemoveDoc = async (doc: UploadedDoc) => {
     setUploadError(null)
-    const { error } = await supabase.storage.from('application-documents').remove([doc.path])
-    if (error) {
-      setUploadError(error.message || 'Could not remove the file. Please try again.')
-      return
-    }
-    setDocs((prev) => {
-      const updated = prev.filter((d) => d.path !== doc.path)
-      localStorage.setItem('kti-docs', JSON.stringify(updated))
-      return updated
-    })
+    const res = await removeDocument(sessionId, doc.path)
+    if (!res.ok) { setUploadError(res.error ?? 'Could not remove the file. Please try again.'); return }
+    saveDocs(docs.filter((d) => d.path !== doc.path))
   }
 
   const submit = async () => {
-    const errs = validateStep('documents', form)
+    const errs = validateCurrent()
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
+    if (preview) { setSubmitError('This is a preview — submissions are disabled.'); return }
     setSubmitting(true)
     setSubmitError(null)
-    const supabase = createClient()
-    const payload = {
-      ...formToDbPayload(form),
+    const res = await submitApplication({
+      draftId: sessionId,
+      courseId: draft.courseId,
+      intakeId: draft.intakeId || null,
+      studyMode: draft.studyMode || null,
+      answers: draft.answers,
+      declaration: draft.declaration,
       documents: docs,
-      submitted_at: new Date().toISOString(),
-    }
-    const { data, error } = await supabase
-      .from('applications')
-      .insert([payload])
-      .select('student_number')
-      .single()
-    if (error) { setSubmitError(error.message); setSubmitting(false); return }
-    localStorage.removeItem('kti-draft')
-    localStorage.removeItem('kti-docs')
-    localStorage.removeItem('kti-session-id')
-    setStudentNumber(data.student_number ?? '')
+    })
     setSubmitting(false)
+    if (!res.ok) {
+      setSubmitError(res.error)
+      if (res.fieldErrors && Object.keys(res.fieldErrors).length > 0) {
+        setErrors(res.fieldErrors)
+        // Jump to the first step that has a problem.
+        const firstBad = steps.findIndex((s) => s.fields.some((f) => res.fieldErrors![f.key]))
+        if (firstBad >= 0) { setStepIndex(firstBad + 1); scrollTop() }
+      }
+      return
+    }
+    storage.remove(DRAFT_KEY)
+    storage.remove(DOCS_KEY)
+    storage.remove(SESSION_KEY)
+    setReference(res.reference)
     setPhase('submitted')
     window.scrollTo({ top: 0 })
   }
 
+  const previewBanner = preview && (
+    <div className="mx-auto mb-6 flex max-w-2xl items-center gap-2 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm font-medium text-foreground">
+      <Eye className="size-4 shrink-0" /> Preview mode — nothing is saved, uploaded or submitted.
+    </div>
+  )
+
+  if (!isOpen && !preview) {
+    return (
+      <div className="mx-auto max-w-2xl text-center">
+        <div className="mx-auto flex size-20 items-center justify-center rounded-full bg-muted">
+          <Clock className="size-10 text-muted-foreground" />
+        </div>
+        <h1 className="mt-6 font-serif text-3xl font-bold text-foreground">Applications are closed</h1>
+        <p className="mx-auto mt-4 max-w-lg whitespace-pre-line text-lg text-muted-foreground">{form.settings.closed_message}</p>
+        <Link href="/" className="mt-8 inline-block">
+          <Button variant="outline" className="h-14 gap-2 px-8 text-lg"><Home className="size-5" /> Return to home page</Button>
+        </Link>
+      </div>
+    )
+  }
+
   if (phase === 'welcome') {
     return (
-      <WelcomeScreen
-        hasDraft={hasDraft}
-        onStart={startFresh}
-        onResume={() => setPhase('form')}
-        onFresh={startFresh}
-      />
+      <>
+        {previewBanner}
+        <WelcomeScreen
+          title={form.welcome.title}
+          intro={form.welcome.intro}
+          hasDraft={hasDraft}
+          onStart={startFresh}
+          onResume={() => setPhase('form')}
+          onFresh={startFresh}
+        />
+      </>
     )
   }
 
   if (phase === 'submitted') {
     return (
       <SubmittedScreen
-        studentNumber={studentNumber}
+        config={form.confirmation}
+        reference={reference}
         copied={copied}
         onCopy={() => {
-          navigator.clipboard?.writeText(studentNumber)
+          navigator.clipboard?.writeText(reference)
           setCopied(true)
           setTimeout(() => setCopied(false), 2000)
         }}
@@ -217,43 +329,65 @@ export function ApplicationWizard() {
     )
   }
 
+  const currentStep = steps.find((s) => s.key === stepKey)
+  const title = stepKey === 'course' ? form.course_step.title
+    : stepKey === 'documents' ? form.documents_step.title
+    : currentStep?.title ?? ''
+
   return (
     <div ref={topRef} className="mx-auto max-w-2xl scroll-mt-6">
-      <ProgressIndicator stepIndex={stepIndex} onJump={jumpTo} />
+      {previewBanner}
+      <ProgressIndicator labels={shortLabels} stepIndex={stepIndex} onJump={jumpTo} />
 
       <div className="mt-8 rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <p className="text-base font-semibold text-accent-foreground">
-              Step {stepIndex + 1} of {STEP_KEYS.length}
+              Step {stepIndex + 1} of {stepKeys.length}
             </p>
-            <h1 className="mt-1 font-serif text-2xl font-bold text-foreground sm:text-3xl">
-              {STEP_META[stepKey].title}
-            </h1>
+            <h1 className="mt-1 font-serif text-2xl font-bold text-foreground sm:text-3xl">{title}</h1>
           </div>
-          <SaveBadge state={saveState} />
+          {!preview && <SaveBadge state={saveState} />}
         </div>
 
-        {stepKey === 'programme' && (
-          <ProgrammeCards
-            label="Which course would you like to study?"
-            helper="Read through the options and choose the one that feels right. You can always ask us for help."
-            value={form.programme}
-            onChange={(v) => set('programme', v)}
-            programmes={PROGRAMMES}
-            error={errors.programme}
-            required
+        {stepKey === 'course' && (
+          <CoursePicker
+            label={form.course_step.label}
+            helper={form.course_step.helper}
+            courses={courses}
+            courseId={draft.courseId}
+            intakeId={draft.intakeId}
+            studyMode={draft.studyMode}
+            onCourse={(id) => update({ courseId: id, intakeId: '', studyMode: '' }, ['course', 'intake', 'study_mode'])}
+            onIntake={(id) => update({ intakeId: id }, ['intake'])}
+            onStudyMode={(m) => update({ studyMode: m }, ['study_mode'])}
+            errors={errors}
           />
         )}
-        {stepKey === 'personal' && <PersonalStep form={form} set={set} errors={errors} />}
-        {stepKey === 'contact' && <ContactStep form={form} set={set} errors={errors} />}
-        {stepKey === 'kin' && <KinStep form={form} set={set} errors={errors} />}
-        {stepKey === 'education' && <EducationStep form={form} set={set} errors={errors} />}
-        {stepKey === 'statement' && <StatementStep form={form} set={set} errors={errors} />}
+
+        {currentStep && (
+          <div className="flex flex-col gap-7">
+            {currentStep.intro && (
+              <p className="whitespace-pre-line text-lg leading-relaxed text-muted-foreground">{currentStep.intro}</p>
+            )}
+            {currentStep.fields.filter((f) => isFieldVisible(f, draft.answers)).map((field) => (
+              <FieldRenderer
+                key={field.key}
+                field={field}
+                value={draft.answers[field.key] ?? null}
+                onChange={(v) => setAnswer(field.key, v)}
+                error={errors[field.key]}
+              />
+            ))}
+          </div>
+        )}
+
         {stepKey === 'documents' && (
           <DocumentsStep
             form={form}
-            set={set}
+            course={course}
+            declaration={draft.declaration}
+            setDecl={setDecl}
             errors={errors}
             docs={docs}
             uploading={uploading}
@@ -272,7 +406,7 @@ export function ApplicationWizard() {
               </p>
             </div>
             {submitError && (
-              <div className="mt-4 flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-destructive">
+              <div className="mt-4 flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-destructive" role="alert">
                 <AlertCircle className="mt-0.5 size-5 shrink-0" />
                 <p className="text-base font-medium">{submitError}</p>
               </div>
@@ -286,7 +420,7 @@ export function ApplicationWizard() {
           <Button variant="outline" onClick={goBack} className="h-14 gap-2 px-6 text-lg sm:w-auto">
             <ArrowLeft className="size-5" /> Back
           </Button>
-        ) : (
+        ) : preview ? <span /> : (
           <Link href="/">
             <Button variant="ghost" className="h-14 gap-2 px-4 text-lg">
               <Home className="size-5" /> Exit
@@ -307,12 +441,54 @@ export function ApplicationWizard() {
         )}
       </div>
 
-      <p className="mt-5 flex items-center justify-center gap-2 text-center text-base text-muted-foreground">
-        <Save className="size-4" />
-        Your progress is saved on this device. You can safely close and come back later.
-      </p>
+      {!preview && (
+        <p className="mt-5 flex items-center justify-center gap-2 text-center text-base text-muted-foreground">
+          <Save className="size-4" />
+          Your progress is saved on this device. You can safely close and come back later.
+        </p>
+      )}
     </div>
   )
+}
+
+// ── Field renderer ──────────────────────────────────────────────
+
+function FieldRenderer({
+  field, value, onChange, error,
+}: {
+  field: FieldConfig
+  value: string | boolean | null
+  onChange: (v: string | boolean | null) => void
+  error?: string
+}) {
+  const core = CORE_FIELDS[field.key]
+  const text = typeof value === 'string' ? value : ''
+  const common = { label: field.label, helper: field.helper || undefined, error, required: field.required }
+
+  switch (field.type) {
+    case 'textarea':
+      return <TextArea id={field.key} {...common} example={field.placeholder || undefined} rows={field.key in { motivation: 1, calling: 1, goals: 1 } ? 6 : 3} value={text} onChange={onChange} />
+    case 'select':
+      return <SelectField id={field.key} {...common} value={text} onChange={onChange} options={field.options} placeholder={field.placeholder || 'Select an option'} />
+    case 'radio':
+      return <RadioCards {...common} value={text} onChange={onChange} options={field.options} />
+    case 'yesno':
+      return <YesNo {...common} value={typeof value === 'boolean' ? value : null} onChange={onChange} />
+    default:
+      return (
+        <TextField
+          id={field.key}
+          {...common}
+          example={field.placeholder || undefined}
+          type={field.type}
+          inputMode={core?.inputMode ?? (field.type === 'tel' ? 'tel' : field.type === 'email' ? 'email' : undefined)}
+          autoComplete={core?.autoComplete}
+          maxLength={fieldMaxLength(field)}
+          value={text}
+          onChange={onChange}
+        />
+      )
+  }
 }
 
 // ── Save badge ──────────────────────────────────────────────────
@@ -333,8 +509,8 @@ function SaveBadge({ state }: { state: SaveState }) {
 
 // ── Progress indicator ──────────────────────────────────────────
 
-function ProgressIndicator({ stepIndex, onJump }: { stepIndex: number; onJump: (k: StepKey) => void }) {
-  const pct = ((stepIndex + 1) / STEP_KEYS.length) * 100
+function ProgressIndicator({ labels, stepIndex, onJump }: { labels: string[]; stepIndex: number; onJump: (i: number) => void }) {
+  const pct = ((stepIndex + 1) / labels.length) * 100
   return (
     <div>
       <div className="mb-4 h-2.5 w-full overflow-hidden rounded-full bg-muted">
@@ -344,16 +520,17 @@ function ProgressIndicator({ stepIndex, onJump }: { stepIndex: number; onJump: (
         />
       </div>
       <ol className="flex items-center justify-between gap-1">
-        {STEP_KEYS.map((k, i) => {
+        {labels.map((label, i) => {
           const done = i < stepIndex
           const active = i === stepIndex
           return (
-            <li key={k} className="flex flex-1 flex-col items-center gap-1.5">
+            <li key={i} className="flex flex-1 flex-col items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => done ? onJump(k) : undefined}
+                onClick={() => done ? onJump(i) : undefined}
                 disabled={!done}
                 aria-current={active ? 'step' : undefined}
+                aria-label={`Step ${i + 1}: ${label}`}
                 className={cn(
                   'grid size-9 place-items-center rounded-full border-2 text-sm font-bold transition',
                   active && 'border-primary bg-primary text-primary-foreground',
@@ -367,7 +544,7 @@ function ProgressIndicator({ stepIndex, onJump }: { stepIndex: number; onJump: (
                 'hidden text-center text-xs font-medium sm:block',
                 active ? 'text-foreground' : 'text-muted-foreground',
               )}>
-                {STEP_META[k].short}
+                {label}
               </span>
             </li>
           )
@@ -380,16 +557,14 @@ function ProgressIndicator({ stepIndex, onJump }: { stepIndex: number; onJump: (
 // ── Welcome screen ──────────────────────────────────────────────
 
 function WelcomeScreen({
-  hasDraft, onStart, onResume, onFresh,
-}: { hasDraft: boolean; onStart: () => void; onResume: () => void; onFresh: () => void }) {
+  title, intro, hasDraft, onStart, onResume, onFresh,
+}: { title: string; intro: string; hasDraft: boolean; onStart: () => void; onResume: () => void; onFresh: () => void }) {
   return (
     <div className="mx-auto max-w-2xl text-center">
-      <h1 className="font-serif text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-        Welcome!<br />Let&apos;s begin your application
+      <h1 className="whitespace-pre-line font-serif text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+        {title}
       </h1>
-      <p className="mx-auto mt-4 max-w-xl text-lg leading-relaxed text-muted-foreground">
-        We will ask a few simple questions about you and your faith. Take your time — there is no rush.
-      </p>
+      <p className="mx-auto mt-4 max-w-xl whitespace-pre-line text-lg leading-relaxed text-muted-foreground">{intro}</p>
 
       <div className="mx-auto mt-8 flex max-w-md flex-col gap-3">
         <InfoRow icon={<Clock className="size-5" />} text="Takes about 15–20 minutes to complete" />
@@ -435,24 +610,20 @@ function InfoRow({ icon, text }: { icon: React.ReactNode; text: string }) {
 
 // ── Submitted screen ────────────────────────────────────────────
 
-function SubmittedScreen({ studentNumber, copied, onCopy }: { studentNumber: string; copied: boolean; onCopy: () => void }) {
+function SubmittedScreen({
+  config, reference, copied, onCopy,
+}: { config: FormConfig['confirmation']; reference: string; copied: boolean; onCopy: () => void }) {
   return (
     <div className="mx-auto max-w-2xl text-center">
       <div className="mx-auto flex size-24 items-center justify-center rounded-full bg-success/15">
         <CheckCircle2 className="size-12 text-success" />
       </div>
-      <h1 className="mt-6 font-serif text-3xl font-bold text-foreground sm:text-4xl">
-        Your application is in!
-      </h1>
-      <p className="mx-auto mt-4 max-w-lg text-lg leading-relaxed text-muted-foreground">
-        Thank you for applying to Ken&apos;s Training Institute. We have received your application and will be in touch soon.
-      </p>
+      <h1 className="mt-6 font-serif text-3xl font-bold text-foreground sm:text-4xl">{config.title}</h1>
+      <p className="mx-auto mt-4 max-w-lg whitespace-pre-line text-lg leading-relaxed text-muted-foreground">{config.message}</p>
 
       <div className="mx-auto mt-8 max-w-md rounded-2xl border border-border bg-card p-6">
         <p className="text-base font-medium text-muted-foreground">Your reference number</p>
-        <p className="mt-2 font-serif text-2xl font-bold tracking-wide text-primary sm:text-3xl">
-          {studentNumber}
-        </p>
+        <p className="mt-2 font-serif text-2xl font-bold tracking-wide text-primary sm:text-3xl">{reference}</p>
         <Button variant="outline" onClick={onCopy} className="mt-4 h-12 gap-2 px-5 text-base">
           {copied ? <><Check className="size-5 text-success" /> Copied</> : <><Copy className="size-5" /> Copy number</>}
         </Button>
@@ -461,23 +632,21 @@ function SubmittedScreen({ studentNumber, copied, onCopy }: { studentNumber: str
         </p>
       </div>
 
-      <div className="mx-auto mt-8 max-w-md rounded-2xl bg-secondary p-6 text-left">
-        <h2 className="font-serif text-lg font-bold text-foreground">What happens next?</h2>
-        <ol className="mt-3 space-y-3">
-          {[
-            'Our team reviews your application within 5 working days.',
-            'We may contact your next of kin to confirm your details.',
-            'You will receive a call or message with the outcome and next steps.',
-          ].map((t, i) => (
-            <li key={i} className="flex gap-3 text-base text-foreground">
-              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
-                {i + 1}
-              </span>
-              {t}
-            </li>
-          ))}
-        </ol>
-      </div>
+      {config.next_steps.length > 0 && (
+        <div className="mx-auto mt-8 max-w-md rounded-2xl bg-secondary p-6 text-left">
+          <h2 className="font-serif text-lg font-bold text-foreground">What happens next?</h2>
+          <ol className="mt-3 space-y-3">
+            {config.next_steps.map((t, i) => (
+              <li key={i} className="flex gap-3 text-base text-foreground">
+                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                  {i + 1}
+                </span>
+                {t}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       <Link href="/" className="mt-8 inline-block">
         <Button variant="outline" className="h-14 gap-2 px-8 text-lg">
@@ -488,157 +657,96 @@ function SubmittedScreen({ studentNumber, copied, onCopy }: { studentNumber: str
   )
 }
 
-// ── Step components ─────────────────────────────────────────────
-
-type StepProps = {
-  form: KtiForm
-  set: <K extends keyof KtiForm>(key: K, value: KtiForm[K]) => void
-  errors: Errors
-}
-
-function PersonalStep({ form, set, errors }: StepProps) {
-  return (
-    <div className="flex flex-col gap-7">
-      <TextField id="first_name" label="First name" helper="Enter your name exactly as it appears on your ID." example="Grace" autoComplete="given-name" value={form.first_name} onChange={(v) => set('first_name', v)} error={errors.first_name} required />
-      <TextField id="last_name" label="Last name / Surname" example="Mokoena" autoComplete="family-name" value={form.last_name} onChange={(v) => set('last_name', v)} error={errors.last_name} required />
-      <TextField id="date_of_birth" label="Date of birth" type="date" autoComplete="bday" value={form.date_of_birth} onChange={(v) => set('date_of_birth', v)} error={errors.date_of_birth} required />
-      <TextField id="id_number" label="South African ID number" helper="Your 13-digit ID number. If you have a passport, enter your passport number." example="8001015009087" inputMode="numeric" maxLength={13} value={form.id_number} onChange={(v) => set('id_number', v)} error={errors.id_number} required />
-      <RadioCards label="Gender" value={form.gender} onChange={(v) => set('gender', v)} options={['Male', 'Female', 'Other']} error={errors.gender} required />
-      <SelectField id="marital_status" label="Marital status" value={form.marital_status} onChange={(v) => set('marital_status', v)} options={['Single', 'Married', 'Widowed', 'Divorced', 'Separated']} error={errors.marital_status} required />
-      <TextField id="nationality" label="Nationality" example="South African" autoComplete="country-name" value={form.nationality} onChange={(v) => set('nationality', v)} error={errors.nationality} required />
-    </div>
-  )
-}
-
-function ContactStep({ form, set, errors }: StepProps) {
-  return (
-    <div className="flex flex-col gap-7">
-      <TextField id="phone" label="Phone number" helper="Your main contact number." example="082 445 1290" type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={(v) => set('phone', v)} error={errors.phone} required />
-      <TextField id="whatsapp" label="WhatsApp number" helper="If different from your phone number — we may contact you via WhatsApp." example="082 445 1290" type="tel" inputMode="tel" value={form.whatsapp} onChange={(v) => set('whatsapp', v)} error={errors.whatsapp} />
-      <TextArea id="physical_address" label="Physical address" helper="Where do you live? Include your street, area, and town." example="14 Church Street, Polokwane, Limpopo" rows={3} value={form.physical_address} onChange={(v) => set('physical_address', v)} error={errors.physical_address} required />
-      <TextField id="physical_city" label="City / Town" example="Polokwane" value={form.physical_city} onChange={(v) => set('physical_city', v)} error={errors.physical_city} required />
-      <SelectField id="physical_province" label="Province" value={form.physical_province} onChange={(v) => set('physical_province', v)} options={PROVINCES} placeholder="Select your province" error={errors.physical_province} required />
-      <TextField id="postal_code" label="Postal code" example="0699" inputMode="numeric" maxLength={4} value={form.postal_code} onChange={(v) => set('postal_code', v)} error={errors.postal_code} />
-      <YesNo label="Is your postal address the same as your physical address?" value={form.postal_same} onChange={(v) => set('postal_same', v)} error={errors.postal_same} required />
-      {form.postal_same === false && (
-        <TextArea id="postal_address" label="Postal address" helper="Enter your PO Box or postal address." example="PO Box 123, Polokwane, 0699" rows={3} value={form.postal_address} onChange={(v) => set('postal_address', v)} error={errors.postal_address} required />
-      )}
-    </div>
-  )
-}
-
-function KinStep({ form, set, errors }: StepProps) {
-  return (
-    <div className="flex flex-col gap-7">
-      <p className="text-lg text-muted-foreground">Who should we contact in an emergency?</p>
-      <TextField id="kin_full_name" label="Full name" example="Mary Mokoena" autoComplete="off" value={form.kin_full_name} onChange={(v) => set('kin_full_name', v)} error={errors.kin_full_name} required />
-      <TextField id="kin_relationship" label="Relationship to you" example="Mother, Spouse, Sibling" value={form.kin_relationship} onChange={(v) => set('kin_relationship', v)} error={errors.kin_relationship} required />
-      <TextField id="kin_phone" label="Their phone number" type="tel" inputMode="tel" example="082 445 1290" value={form.kin_phone} onChange={(v) => set('kin_phone', v)} error={errors.kin_phone} required />
-      <TextField id="kin_email" label="Their email address" helper="Optional." type="email" inputMode="email" example="mary@example.com" value={form.kin_email} onChange={(v) => set('kin_email', v)} error={errors.kin_email} />
-    </div>
-  )
-}
-
-function EducationStep({ form, set, errors }: StepProps) {
-  return (
-    <div className="flex flex-col gap-7">
-      <SelectField id="highest_qualification" label="Highest qualification" helper="What is the highest level of education you have completed?" value={form.highest_qualification} onChange={(v) => set('highest_qualification', v)} options={QUALIFICATIONS} error={errors.highest_qualification} required />
-      <TextField id="institution" label="School or institution" helper="Where did you study or complete this qualification?" example="Polokwane High School" value={form.institution} onChange={(v) => set('institution', v)} error={errors.institution} required />
-      <TextField id="year_completed" label="Year completed" example="2005" inputMode="numeric" value={form.year_completed} onChange={(v) => set('year_completed', v)} error={errors.year_completed} required />
-      <TextArea id="subjects" label="Subjects or areas of study" helper="List the main subjects you studied." example="English, Maths, History, Religious Studies" rows={3} value={form.subjects} onChange={(v) => set('subjects', v)} error={errors.subjects} />
-      <TextArea id="additional_qualifications" label="Any other qualifications or training?" helper="Include any certificates, short courses, or Bible school training." rows={3} value={form.additional_qualifications} onChange={(v) => set('additional_qualifications', v)} error={errors.additional_qualifications} />
-    </div>
-  )
-}
-
-function StatementStep({ form, set, errors }: StepProps) {
-  return (
-    <div className="flex flex-col gap-7">
-      <p className="text-lg leading-relaxed text-muted-foreground">Please answer each question in your own words. There are no wrong answers — just be honest and open.</p>
-      <TextArea id="motivation" label="Why do you want to study theology?" helper="Share what has led you to apply." rows={6} value={form.motivation} onChange={(v) => set('motivation', v)} error={errors.motivation} required />
-      <TextArea id="calling" label="Describe your calling to ministry" helper="When and how did you feel called by God? What does that calling look like for you?" rows={6} value={form.calling} onChange={(v) => set('calling', v)} error={errors.calling} required />
-      <TextArea id="goals" label="What are your goals after completing this programme?" helper="How will this training help you serve God, your church, and your community?" rows={6} value={form.goals} onChange={(v) => set('goals', v)} error={errors.goals} required />
-    </div>
-  )
-}
-
 // ── Documents & Declaration ─────────────────────────────────────
 
-const REQUIRED_DOCS = [
-  { type: 'id_document', label: 'South African ID document', hint: 'A clear copy of the front and back of your ID book or ID card.', required: true },
-  { type: 'matric_certificate', label: 'Matric certificate or highest qualification', hint: 'A certified copy of your certificate.', required: true },
-  { type: 'passport_photo', label: 'Passport-size photo', hint: 'A recent, colour photo with a plain white background.', required: true },
-]
-
 function DocumentsStep({
-  form, set, errors, docs, uploading, uploadError, onUpload, onRemove,
-}: StepProps & {
-  docs: DocRef[]
+  form, course, declaration, setDecl, errors, docs, uploading, uploadError, onUpload, onRemove,
+}: {
+  form: FormConfig
+  course: CatalogCourse | undefined
+  declaration: DeclarationAnswers
+  setDecl: <K extends keyof DeclarationAnswers>(key: K, value: DeclarationAnswers[K]) => void
+  errors: Errors
+  docs: UploadedDoc[]
   uploading: string | null
   uploadError: string | null
   onUpload: (type: string, file: File) => void
-  onRemove: (doc: DocRef) => void
+  onRemove: (doc: UploadedDoc) => void
 }) {
+  const required = form.documents.filter((d) => d.enabled)
   return (
     <div className="flex flex-col gap-7">
-      <div className="flex flex-col gap-4">
-        <p className="text-lg font-semibold text-foreground">Upload your documents</p>
-        <p className="text-base text-muted-foreground">Files should be PDF, JPG, or PNG, and no larger than 5 MB each.</p>
+      {course && (
+        <div className="rounded-xl border border-border bg-muted/40 p-4">
+          <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">You are applying for</p>
+          <p className="mt-1 text-lg font-semibold text-foreground">{course.name}</p>
+          <div className="mt-2"><FeeBreakdown course={course} /></div>
+        </div>
+      )}
 
-        {uploadError && (
-          <p className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-2 text-base font-medium text-destructive" role="alert">
-            <AlertCircle className="size-4 shrink-0" /> {uploadError}
-          </p>
-        )}
+      {required.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <p className="text-lg font-semibold text-foreground">Upload your documents</p>
+          {form.documents_step.intro && <p className="text-base text-muted-foreground">{form.documents_step.intro}</p>}
 
-        {REQUIRED_DOCS.map((req) => {
-          const uploaded = docs.find((d) => d.type === req.type)
-          const isUploading = uploading === req.type
-          return (
-            <div key={req.type} className="rounded-xl border-2 border-border p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-lg font-semibold text-foreground">
-                    {req.label}
-                    {req.required && <span className="ml-1 text-destructive" aria-hidden="true">*</span>}
-                  </p>
-                  <p className="text-base text-muted-foreground">{req.hint}</p>
-                </div>
-                {uploaded ? (
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1.5 rounded-lg bg-success/10 px-3 py-2 text-base font-medium text-success">
-                      <FileText className="size-4" /> {uploaded.name}
-                    </span>
-                    <button onClick={() => onRemove(uploaded)} className="rounded p-1 text-muted-foreground hover:text-destructive">
-                      <X className="size-4" />
-                    </button>
+          {uploadError && (
+            <p className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-2 text-base font-medium text-destructive" role="alert">
+              <AlertCircle className="size-4 shrink-0" /> {uploadError}
+            </p>
+          )}
+
+          {required.map((req) => {
+            const uploaded = docs.find((d) => d.type === req.type)
+            const isUploading = uploading === req.type
+            const err = errors[`doc_${req.type}`]
+            return (
+              <div key={req.type} className={cn('rounded-xl border-2 p-5', err ? 'border-destructive' : 'border-border')}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-lg font-semibold text-foreground">
+                      {req.label}
+                      {req.required && <span className="ml-1 text-destructive" aria-hidden="true">*</span>}
+                    </p>
+                    {req.hint && <p className="text-base text-muted-foreground">{req.hint}</p>}
+                    {err && <p role="alert" className="mt-1 text-base font-medium text-destructive">{err}</p>}
                   </div>
-                ) : (
-                  <label className="cursor-pointer">
-                    <input type="file" className="sr-only" accept=".pdf,.jpg,.jpeg,.png" disabled={isUploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(req.type, f) }} />
-                    <span className={cn(
-                      'flex h-11 items-center gap-2 rounded-xl border-2 border-dashed border-primary/40 px-4 text-base font-medium text-primary hover:bg-primary/5',
-                      isUploading && 'opacity-50',
-                    )}>
-                      {isUploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-                      {isUploading ? 'Uploading…' : 'Choose file'}
-                    </span>
-                  </label>
-                )}
+                  {uploaded ? (
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center gap-1.5 rounded-lg bg-success/10 px-3 py-2 text-base font-medium text-success">
+                        <FileText className="size-4" /> {uploaded.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onRemove(uploaded)}
+                        aria-label={`Remove ${uploaded.name}`}
+                        className="rounded p-1 text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer">
+                      <input type="file" className="sr-only" accept=".pdf,.jpg,.jpeg,.png" disabled={isUploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(req.type, f); e.target.value = '' }} />
+                      <span className={cn(
+                        'flex h-11 items-center gap-2 rounded-xl border-2 border-dashed border-primary/40 px-4 text-base font-medium text-primary hover:bg-primary/5',
+                        isUploading && 'opacity-50',
+                      )}>
+                        {isUploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                        {isUploading ? 'Uploading…' : 'Choose file'}
+                      </span>
+                    </label>
+                  )}
+                </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Declaration */}
       <div className="rounded-2xl border-2 border-dashed border-input bg-muted/30 p-6">
         <p className="font-serif text-xl font-bold text-foreground">Declaration</p>
-        <p className="mt-3 text-base leading-relaxed text-muted-foreground">
-          I declare that all information I have provided in this application is true and complete to the best of my knowledge.
-          I understand that any false information may result in my application being rejected or my enrolment being cancelled.
-          I consent to Ken&apos;s Training Institute verifying my documents and contacting my references.
-        </p>
+        <p className="mt-3 whitespace-pre-line text-base leading-relaxed text-muted-foreground">{form.declaration.text}</p>
 
         {errors.declaration && (
           <p className="mt-3 flex items-center gap-1.5 text-base font-medium text-destructive" role="alert">
@@ -647,19 +755,19 @@ function DocumentsStep({
         )}
 
         <YesNo
-          label="I accept the declaration above and confirm my information is correct"
-          value={form.declaration}
-          onChange={(v) => set('declaration', v)}
+          label={form.declaration.accept_label}
+          value={declaration.declaration}
+          onChange={(v) => setDecl('declaration', v)}
           error={undefined}
           required
         />
 
         <div className="mt-6 flex flex-col gap-4">
-          <TextField id="signature" label="Digital signature" helper="Type your full name exactly as it appears on your ID." example="Grace Mokoena" value={form.signature} onChange={(v) => set('signature', v)} error={errors.signature} required />
-          {form.signature && (
-            <p className="font-[cursive] text-3xl text-primary" aria-hidden="true">{form.signature}</p>
+          <TextField id="signature" label="Digital signature" helper="Type your full name exactly as it appears on your ID." example="Grace Mokoena" maxLength={200} value={declaration.signature} onChange={(v) => setDecl('signature', v)} error={errors.signature} required />
+          {declaration.signature && (
+            <p className="font-[cursive] text-3xl text-primary" aria-hidden="true">{declaration.signature}</p>
           )}
-          <TextField id="signature_date" label="Date" type="date" value={form.signature_date} onChange={(v) => set('signature_date', v)} error={errors.signature_date} required />
+          <TextField id="signature_date" label="Date" type="date" value={declaration.signature_date} onChange={(v) => setDecl('signature_date', v)} error={errors.signature_date} required />
         </div>
       </div>
     </div>
