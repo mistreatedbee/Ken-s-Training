@@ -3,14 +3,9 @@ import Image from "next/image"
 import { ArrowRight, Check } from "lucide-react"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import type { SiteContent } from "@/lib/site-content"
 
-const TRUST = [
-  "Accredited Programmes",
-  "Flexible Learning",
-  "Christian-Based Education",
-]
-
-export function Hero() {
+export function Hero({ content }: { content: SiteContent["hero"] }) {
   return (
     <main className="relative flex flex-col items-center overflow-hidden bg-background px-4 pb-24 pt-20 text-center">
       {/* Radial glow behind logo */}
@@ -23,10 +18,12 @@ export function Hero() {
       <div className="absolute left-0 right-0 top-0 h-1 bg-accent" />
 
       {/* Badge */}
-      <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-sm font-semibold text-accent-foreground">
-        <span className="size-2 shrink-0 rounded-full bg-accent" />
-        Applications are open for 2026
-      </div>
+      {content.badge.trim() && (
+        <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-sm font-semibold text-accent-foreground">
+          <span className="size-2 shrink-0 rounded-full bg-accent" />
+          {content.badge}
+        </div>
+      )}
 
       {/* Logo */}
       <div className="rounded-2xl border border-border bg-card px-8 py-5 shadow-2xl ring-4 ring-primary/10">
@@ -42,20 +39,18 @@ export function Hero() {
 
       {/* Headline */}
       <h1 className="mt-8 max-w-2xl font-serif text-4xl font-bold leading-tight text-foreground sm:text-5xl md:text-6xl">
-        Ken&apos;s Training{" "}
-        <span className="text-accent">Institute</span>
+        {content.title_main}{" "}
+        <span className="text-accent">{content.title_accent}</span>
       </h1>
 
       {/* Tagline */}
       <p className="mt-3 text-lg font-semibold text-primary sm:text-xl">
-        Equipping People Through Knowledge, Faith and Purpose
+        {content.tagline}
       </p>
 
       {/* Description */}
       <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-muted-foreground">
-        Ken&apos;s Training Institute provides structured theological programmes
-        designed to equip individuals with knowledge, skills, and spiritual
-        development — preparing them to serve with confidence and purpose.
+        {content.description}
       </p>
 
       {/* CTA */}
@@ -66,13 +61,13 @@ export function Hero() {
           "mt-10 h-16 gap-3 px-12 text-xl font-bold shadow-lg",
         )}
       >
-        Start Your Application
+        {content.button_label}
         <ArrowRight className="size-6" />
       </Link>
 
       {/* Trust indicators */}
       <div className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-3">
-        {TRUST.map((label) => (
+        {content.highlights.map((label) => (
           <span
             key={label}
             className="flex items-center gap-2 text-sm font-medium text-muted-foreground"

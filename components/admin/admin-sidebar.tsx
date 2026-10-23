@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
-  BarChart3, BookOpen, ClipboardList, FileText, History, KeyRound, LayoutDashboard,
+  BarChart3, BookOpen, ClipboardList, FileText, Globe, History, KeyRound, LayoutDashboard,
   LogOut, Menu, MessageCircle, Shield, Users, Wallet, X,
 } from 'lucide-react'
 import { BrandLogo } from '@/components/brand-logo'
@@ -17,6 +17,7 @@ const NAV: { href: string; label: string; icon: typeof FileText; permission?: Pe
   { href: '/admin/students',     label: 'Students',       icon: Users },
   { href: '/admin/courses',      label: 'Courses & fees', icon: BookOpen },
   { href: '/admin/form',         label: 'Application form', icon: ClipboardList },
+  { href: '/admin/website',      label: 'Website content', icon: Globe, permission: 'content.manage' },
   { href: '/admin/payments',     label: 'Payments',       icon: Wallet },
   { href: '/admin/whatsapp',     label: 'WhatsApp',       icon: MessageCircle },
   { href: '/admin/reports',      label: 'Reports',        icon: BarChart3 },

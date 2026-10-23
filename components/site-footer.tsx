@@ -1,33 +1,40 @@
 import Link from "next/link"
-import { Phone, Mail } from "lucide-react"
+import { Phone, Mail, MapPin } from "lucide-react"
 import { BrandLogo } from "@/components/brand-logo"
+import { telHref, type SiteContent } from "@/lib/site-content"
 
-export function SiteFooter() {
+export function SiteFooter({ contact }: { contact: SiteContent["contact"] }) {
   return (
     <footer className="border-t border-border bg-sidebar text-sidebar-foreground">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-3">
         <div>
           <BrandLogo className="text-sidebar-foreground" />
           <p className="mt-4 max-w-xs text-sm leading-relaxed opacity-80">
-            Equipping people of faith for ministry and service. Everyone is welcome to apply.
+            {contact.footer_blurb}
           </p>
         </div>
 
         <div>
           <h2 className="font-serif text-lg font-semibold">Contact us</h2>
           <ul className="mt-4 flex flex-col gap-3 text-sm">
-            <li className="flex items-center gap-3">
-              <Phone className="size-5 shrink-0 text-sidebar-primary" />
-              <a href="tel:+27732047642" className="hover:underline">
-                +27 73 204 7642
-              </a>
-            </li>
-            <li className="flex items-center gap-3">
-              <Mail className="size-5 shrink-0 text-sidebar-primary" />
-              <a href="mailto:kenstraining04@gmail.com" className="hover:underline">
-                kenstraining04@gmail.com
-              </a>
-            </li>
+            {contact.phone && (
+              <li className="flex items-center gap-3">
+                <Phone className="size-5 shrink-0 text-sidebar-primary" />
+                <a href={telHref(contact.phone)} className="hover:underline">{contact.phone}</a>
+              </li>
+            )}
+            {contact.email && (
+              <li className="flex items-center gap-3">
+                <Mail className="size-5 shrink-0 text-sidebar-primary" />
+                <a href={`mailto:${contact.email}`} className="hover:underline">{contact.email}</a>
+              </li>
+            )}
+            {contact.address && (
+              <li className="flex items-start gap-3">
+                <MapPin className="mt-0.5 size-5 shrink-0 text-sidebar-primary" />
+                <span className="whitespace-pre-line">{contact.address}</span>
+              </li>
+            )}
           </ul>
         </div>
 

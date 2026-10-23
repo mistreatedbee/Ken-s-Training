@@ -7,8 +7,8 @@ export const ROLES = ['super_admin', 'admissions', 'course_admin', 'finance', 'r
 export type Role = (typeof ROLES)[number]
 
 export const ROLE_META: Record<Role, { label: string; description: string }> = {
-  super_admin:  { label: 'Super administrator',     description: 'Full control: staff, settings, form, courses, pricing, applications and payments.' },
-  admissions:   { label: 'Admissions administrator', description: 'Review applications, record decisions, notes and communications; export records.' },
+  super_admin:  { label: 'Super administrator',     description: 'Full control: website content, staff, settings, form, courses, pricing, applications, students and payments.' },
+  admissions:   { label: 'Admissions administrator', description: 'Review applications, record decisions, notes and communications; manage students; export records.' },
   course_admin: { label: 'Course administrator',    description: 'Manage courses, intakes and pricing.' },
   finance:      { label: 'Finance',                 description: 'Record and void payments and refunds; export records.' },
   read_only:    { label: 'Read-only staff',         description: 'View applications, courses and reports without changing anything.' },
@@ -23,6 +23,7 @@ export type Permission =
   | 'staff.manage'
   | 'templates.manage'
   | 'audit.view'
+  | 'content.manage'
 
 const GRANTS: Record<Permission, Role[]> = {
   'applications.update': ['admissions'],
@@ -33,6 +34,7 @@ const GRANTS: Record<Permission, Role[]> = {
   'staff.manage': [],
   'templates.manage': ['admissions'],
   'audit.view': [],
+  'content.manage': [],
 }
 
 /** super_admin has every permission. */
